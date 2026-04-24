@@ -296,10 +296,10 @@ export default function CleanReceiptDocument({ data }: Props) {
         {/* ── Line items ──────────────────────────────────── */}
         <View style={S.tableContainer}>
           <View style={S.tableHeader}>
-            <View style={S.colDesc}>  <Text style={S.thText}>Description</Text></View>
-            <View style={S.colQty}>   <Text style={S.thText}>Qty</Text></View>
-            <View style={S.colPrice}> <Text style={S.thText}>Unit price</Text></View>
-            <View style={S.colTax}>   <Text style={S.thText}>Tax</Text></View>
+            <View style={S.colDesc}><Text style={S.thText}>Description</Text></View>
+            <View style={S.colQty}><Text style={S.thText}>Qty</Text></View>
+            <View style={S.colPrice}><Text style={S.thText}>Unit price</Text></View>
+            <View style={S.colTax}><Text style={S.thText}>Tax</Text></View>
             <View style={S.colAmount}><Text style={S.thText}>Amount</Text></View>
           </View>
 
@@ -395,10 +395,10 @@ export default function CleanReceiptDocument({ data }: Props) {
           <View style={S.payHistSection}>
             <Text style={S.payHistTitle}>Payment history</Text>
             <View style={S.phHeader}>
-              <View style={S.phColMethod}>  <Text style={S.phThText}>Payment method</Text></View>
-              <View style={S.phColDate}>    <Text style={S.phThText}>Date</Text></View>
-              <View style={S.phColAmount}>  <Text style={S.phThText}>Amount paid</Text></View>
-              <View style={S.phColReceipt}> <Text style={S.phThText}>Receipt number</Text></View>
+              <View style={S.phColMethod}><Text style={S.phThText}>Payment method</Text></View>
+              <View style={S.phColDate}><Text style={S.phThText}>Date</Text></View>
+              <View style={S.phColAmount}><Text style={S.phThText}>Amount paid</Text></View>
+              <View style={S.phColReceipt}><Text style={S.phThText}>Receipt number</Text></View>
             </View>
             {data.paymentHistory.map((entry) => (
               <View key={entry.id} style={S.phRow}>

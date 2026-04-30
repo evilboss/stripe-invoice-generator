@@ -21,6 +21,7 @@ interface Fields {
   price: string;
   taxRate: string;
   cardLast4: string;
+  supportUrl: string;
   logo?: string; // base64 data URL
 }
 
@@ -251,7 +252,7 @@ ${divider}`
         <td style="width:100%;text-align:center;color:#000000;opacity:0.5">
           <span style="font-family:${FF};font-size:12px;line-height:20px">
             <p style="border:0;margin:0;padding:0;font-family:-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif">
-              Powered by <img src="https://stripe-images.s3.amazonaws.com/emails/invoices_stripe_logo_dark.png" height="24" width="51" align="middle" alt="stripe logo" style="border:0;line-height:100%;vertical-align:middle">
+              Powered by <span style="font-family:${FF};font-size:15px;font-weight:700;color:#635bff;letter-spacing:-0.3px;vertical-align:middle">Stripe</span>
             </p>
           </span>
         </td>
@@ -369,6 +370,7 @@ export default function ReceiptEmlEditor() {
     price: '20.00',
     taxRate: '0',
     cardLast4: '4242',
+    supportUrl: 'https://support.example.com',
     logo: undefined,
   });
 

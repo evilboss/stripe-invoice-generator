@@ -61,6 +61,8 @@ const defaultValues: InvoiceData = {
   },
   paymentInfo: {
     method: '',
+    cardBrand: '',
+    cardLast4: '',
     bankName: '',
     accountName: '',
     accountNumber: '',
@@ -171,7 +173,7 @@ export default function InvoiceForm() {
           <div className="flex flex-col gap-6">
             <InvoiceDetailsSection register={register} setValue={setValue} errors={errors} />
             <BusinessInfoSection register={register} control={control as never} errors={errors} />
-            {!isClean && <PaymentInfoSection register={register} />}
+            {!isClean && <PaymentInfoSection register={register} cardBrand={watch('paymentInfo.cardBrand')} />}
           </div>
           <div className="flex flex-col gap-6">
             <CustomerInfoSection register={register} control={control as never} errors={errors} />

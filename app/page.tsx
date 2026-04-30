@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import InvoiceForm from '@/components/InvoiceForm';
 
 export default function Home() {
@@ -22,27 +23,39 @@ export default function Home() {
           </div>
 
           <nav className="flex-1 px-4 py-4">
-            <p className="px-2 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-widest">Menu</p>
+            <p className="px-2 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-widest">Tools</p>
+            <ul className="mt-1 space-y-0.5">
+              <li>
+                <span className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm bg-[#635BFF] text-white font-medium cursor-default select-none">
+                  <span className="text-base">📄</span>
+                  Invoice Generator
+                </span>
+              </li>
+              <li>
+                <Link
+                  href="/receipt-eml"
+                  className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition text-gray-400 hover:text-gray-200 hover:bg-white/5"
+                >
+                  <span className="text-base">✉️</span>
+                  Receipt EML Editor
+                </Link>
+              </li>
+            </ul>
+
+            <p className="px-2 py-1.5 mt-4 text-xs font-semibold text-gray-500 uppercase tracking-widest">Sections</p>
             <ul className="mt-1 space-y-0.5">
               {[
-                { label: 'New Invoice', icon: '📄', active: true },
-                { label: 'Invoice Details', icon: '📋', active: false },
-                { label: 'From (Business)', icon: '🏢', active: false },
-                { label: 'Bill To (Customer)', icon: '👤', active: false },
-                { label: 'Line Items', icon: '📦', active: false },
-                { label: 'Adjustments', icon: '💰', active: false },
-                { label: 'Payment Info', icon: '💳', active: false },
-                { label: 'Notes & Terms', icon: '📝', active: false },
-                { label: 'Customization', icon: '🎨', active: false },
+                { label: 'Invoice Details', icon: '📋' },
+                { label: 'From (Business)', icon: '🏢' },
+                { label: 'Bill To (Customer)', icon: '👤' },
+                { label: 'Line Items', icon: '📦' },
+                { label: 'Adjustments', icon: '💰' },
+                { label: 'Payment Info', icon: '💳' },
+                { label: 'Notes & Terms', icon: '📝' },
+                { label: 'Customization', icon: '🎨' },
               ].map((item) => (
                 <li key={item.label}>
-                  <span
-                    className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition cursor-default select-none ${
-                      item.active
-                        ? 'bg-[#635BFF] text-white font-medium'
-                        : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
-                    }`}
-                  >
+                  <span className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition cursor-default select-none text-gray-400 hover:text-gray-200 hover:bg-white/5">
                     <span className="text-base">{item.icon}</span>
                     {item.label}
                   </span>

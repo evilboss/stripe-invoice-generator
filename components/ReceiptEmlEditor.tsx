@@ -46,8 +46,11 @@ function chunkBase64(b64: string): string {
   return b64.match(/.{1,76}/g)?.join('\r\n') ?? b64;
 }
 
+const ILLUSTRATION_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 94 91" width="94" height="91"><rect x="18" y="13" width="52" height="67" rx="6" fill="#e3e8ee"/><rect x="14" y="9" width="52" height="67" rx="6" fill="white"/><rect x="14" y="9" width="52" height="22" rx="6" fill="#f3f4f6"/><rect x="14" y="25" width="52" height="6" fill="#f3f4f6"/><rect x="24" y="16" width="32" height="4" rx="2" fill="#d1d5db"/><rect x="24" y="39" width="36" height="4" rx="2" fill="#1a1a1a"/><rect x="24" y="48" width="24" height="3" rx="1.5" fill="#e5e7eb"/><rect x="24" y="55" width="28" height="3" rx="1.5" fill="#e5e7eb"/><rect x="24" y="63" width="32" height="1" fill="#e5e7eb"/><rect x="24" y="68" width="12" height="3" rx="1.5" fill="#d1d5db"/><rect x="46" y="68" width="10" height="3" rx="1.5" fill="#6b7280"/><circle cx="72" cy="67" r="17" fill="#635bff"/><polyline points="63,67 69,73 81,59" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
 function buildReceiptHtml(f: Fields, subtotal: number, tax: number, total: number): string {
   const FF = `-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Ubuntu,sans-serif`;
+  const illustrationSrc = `data:image/svg+xml;base64,${btoa(ILLUSTRATION_SVG)}`;
 
   const logoHtml = f.logo
     ? `<img src="${f.logo}" alt="${f.companyName}" style="border-radius:100%;width:32px;height:32px;object-fit:contain;display:block;">`
@@ -153,7 +156,7 @@ ${divider}`
                     </tbody></table>
                   </td>
                   <td style="width:76px;max-width:76px">
-                    <img src="https://stripe-images.s3.amazonaws.com/emails/invoices_invoice_illustration.png" width="94" height="91" style="border:0;display:block;border-radius:8px;margin:0 auto" alt="">
+                    <img src="${illustrationSrc}" width="94" height="91" style="border:0;display:block;border-radius:8px;margin:0 auto" alt="">
                   </td>
                 </tr></tbody></table>
 

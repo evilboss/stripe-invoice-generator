@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { useDropzone } from 'react-dropzone';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import FormField from '@/components/ui/FormField';
@@ -492,7 +493,6 @@ export default function ReceiptEmlEditor() {
 
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [tab, setTab] = useState<'preview' | 'source'>('preview');
-  const attachInputRef = useRef<HTMLInputElement>(null);
 
   type IllStatus = 'idle' | 'loading' | 'ok' | 'error';
   const [illData, setIllData] = useState<{ b64: string; mime: string } | null>(null);
@@ -549,8 +549,7 @@ export default function ReceiptEmlEditor() {
       setFields(prev => ({ ...prev, [key]: e.target.value }));
   }
 
-  function handleAttachFiles(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? []);
+  const onDropFiles = useCallback((files: File[]) => {
     files.forEach(file => {
       const reader = new FileReader();
       reader.onload = ev => {
@@ -566,8 +565,12 @@ export default function ReceiptEmlEditor() {
       };
       reader.readAsDataURL(file);
     });
-    e.target.value = '';
-  }
+  }, []);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop: onDropFiles,
+    multiple: true,
+  });
 
   function removeAttachment(idx: number) {
     setAttachments(prev => prev.filter((_, i) => i !== idx));
@@ -655,14 +658,6 @@ export default function ReceiptEmlEditor() {
 
   return (
     <div className="flex h-full min-h-0">
-      {/* Hidden file input — kept at root so the ref is always in the DOM */}
-      <input
-        ref={attachInputRef}
-        type="file"
-        multiple
-        className="hidden"
-        onChange={handleAttachFiles}
-      />
       {/* Left: Form fields */}
       <aside className="w-72 flex-shrink-0 border-r border-gray-100 bg-white overflow-y-auto p-5 space-y-5">
         <Card title="Sender">

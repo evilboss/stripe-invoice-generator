@@ -606,10 +606,7 @@ export default function ReceiptEmlEditor() {
     () => buildEml(fields, subtotal, tax, total, attachments, illB64, illMime, logoB64, logoMime),
     [fields, subtotal, tax, total, attachments, illB64, illMime, logoB64, logoMime]
   );
-  const previewHtml = useMemo(
-    () => buildReceiptHtml(fields, subtotal, tax, total, illPreviewSrc, logoPreviewSrc),
-    [fields, subtotal, tax, total, illPreviewSrc, logoPreviewSrc]
-  );
+  const previewHtml = buildReceiptHtml(fields, subtotal, tax, total, illPreviewSrc, logoPreviewSrc);
 
   function handleExport() {
     const blob = new Blob([eml], { type: 'message/rfc822' });

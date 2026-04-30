@@ -111,21 +111,25 @@ function buildReceiptHtml(
     `<img src="${cardAsset.url}" alt="${cardAsset.label}" height="${cardAsset.height}" width="${cardAsset.width}" style="border:0;margin:0 6px 0 0;padding:0;vertical-align:text-bottom">` +
     `${cardAsset.label} ending in ${f.cardLast4}</span>`;
 
-  const productLineItem =
-    `<table cellpadding="0" cellspacing="0" style="width:100%"><tbody>
+  const lineItemsHtml = f.lineItems.map(item => {
+    const qty = parseFloat(item.qty) || 0;
+    const unitPrice = parseFloat(item.unitPrice) || 0;
+    const amount = qty * unitPrice;
+    return `<table cellpadding="0" cellspacing="0" style="width:100%"><tbody>
 <tr>
   <td style="min-width:32px;width:32px;font-size:1px">&nbsp;</td>
   <td>
-    <span style="font-family:${FF};color:#1a1a1a;font-size:14px;line-height:16px;font-weight:500;word-break:break-word">${f.productName}</span>
+    <span style="font-family:${FF};color:#1a1a1a;font-size:14px;line-height:16px;font-weight:500;word-break:break-word">${item.name || '(unnamed)'}</span>
     <div style="height:3px"></div>
-    <span style="font-family:${FF};color:#999999;font-size:12px;line-height:14px">Qty 1</span>
+    <span style="font-family:${FF};color:#999999;font-size:12px;line-height:14px">Qty ${item.qty || 1}</span>
   </td>
   <td style="min-width:16px;width:16px;font-size:1px">&nbsp;</td>
-  <td align="right" style="text-align:right;vertical-align:top"><span style="font-family:${FF};color:#1a1a1a;font-size:14px;line-height:16px;font-weight:500;white-space:nowrap">${fmt(subtotal)}</span></td>
+  <td align="right" style="text-align:right;vertical-align:top"><span style="font-family:${FF};color:#1a1a1a;font-size:14px;line-height:16px;font-weight:500;white-space:nowrap">${fmt(amount)}</span></td>
   <td style="min-width:32px;width:32px;font-size:1px">&nbsp;</td>
 </tr>
 <tr><td colspan="5" height="24" style="font-size:1px;line-height:1px">&nbsp;</td></tr>
 </tbody></table>`;
+  }).join('\n');
 
   const taxSection = tax > 0
     ? `${billRow('Total excluding tax', fmt(subtotal))}
@@ -252,7 +256,7 @@ ${divider}`
 
             ${sp(8)}
 
-            ${productLineItem}
+            ${lineItemsHtml}
             ${billRow('Subtotal', fmt(subtotal))}
             ${divider}
             ${taxSection}
@@ -319,7 +323,11 @@ Payment method: ${cardAsset.label} ending in ${f.cardLast4}
 --- Receipt #${f.receiptNumber} ---
 ${f.billingPeriod}
 
-${f.productName} x1: ${fmt(subtotal)}
+${f.lineItems.map(item => {
+  const qty = parseFloat(item.qty) || 0;
+  const unitPrice = parseFloat(item.unitPrice) || 0;
+  return `${item.name || '(unnamed)'} x${item.qty || 1}: ${fmt(qty * unitPrice)}`;
+}).join('\n')}
 Subtotal: ${fmt(subtotal)}
 ${taxLines}Total: ${fmt(total)}
 Amount paid: ${fmt(total)}
@@ -357,11 +365,15 @@ function buildEml(
     ? `\nReturn-Path: <noreply@${f.mailedBy.trim()}>\nSender: noreply@${f.mailedBy.trim()}`
     : '';
 
+  const dkimHeader = f.signedBy.trim()
+    ? `\nDKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=${f.signedBy.trim()}; s=default;\r\n h=from:to:subject:date; bh=demo; b=demo-signature-for-training-purposes-only`
+    : '';
+
   const headers = `From: ${f.companyName} <${f.fromEmail}>
 To: ${f.toEmail}
 Subject: ${f.subject}
 Date: ${date}
-Message-ID: ${messageId}${mailedByHeaders}
+Message-ID: ${messageId}${mailedByHeaders}${dkimHeader}
 MIME-Version: 1.0
 X-Demo-Notice: Simulated receipt for training/demo purposes only`;
 
@@ -440,12 +452,12 @@ export default function ReceiptEmlEditor() {
     receiptNumber: '',
     invoiceNumber: '',
     subject: 'Your payment receipt from Acme Corp',
-    productName: '',
-    price: '',
+    lineItems: [{ id: '1', name: '', qty: '1', unitPrice: '' }],
     taxRate: '0',
     cardBrand: 'visa',
     cardLast4: '',
     mailedBy: '',
+    signedBy: '',
     supportUrl: 'https://support.example.com',
     illustrationUrl: 'https://stripe-images.s3.amazonaws.com/emails/invoices_invoice_illustration.png',
     logoUrl: '',
@@ -549,12 +561,16 @@ export default function ReceiptEmlEditor() {
   }
 
   const { subtotal, tax, total } = useMemo(() => {
-    const subtotal = parseFloat(fields.price) || 0;
+    const subtotal = fields.lineItems.reduce((sum, item) => {
+      const qty = parseFloat(item.qty) || 0;
+      const unitPrice = parseFloat(item.unitPrice) || 0;
+      return sum + qty * unitPrice;
+    }, 0);
     const taxRate = parseFloat(fields.taxRate) || 0;
     const tax = parseFloat((subtotal * taxRate / 100).toFixed(2));
     const total = parseFloat((subtotal + tax).toFixed(2));
     return { subtotal, tax, total };
-  }, [fields.price, fields.taxRate]);
+  }, [fields.lineItems, fields.taxRate]);
 
   const illB64       = illData?.b64  ?? btoa(ILLUSTRATION_SVG);
   const illMime      = illData?.mime ?? 'image/svg+xml';
@@ -645,6 +661,9 @@ export default function ReceiptEmlEditor() {
             <FormField label="Mailed-by domain" htmlFor="mailedBy" hint="Optional — sets Return-Path & Sender headers (e.g. stripe.com)">
               <Input id="mailedBy" value={fields.mailedBy} onChange={setField('mailedBy')} placeholder="stripe.com" />
             </FormField>
+            <FormField label="Signed-by domain" htmlFor="signedBy" hint="Optional — adds DKIM-Signature header (e.g. stripe.com)">
+              <Input id="signedBy" value={fields.signedBy} onChange={setField('signedBy')} placeholder="stripe.com" />
+            </FormField>
           </div>
         </Card>
 
@@ -671,14 +690,78 @@ export default function ReceiptEmlEditor() {
           </div>
         </Card>
 
-        <Card title="Line item">
-          <div className="space-y-3">
-            <FormField label="Product name" htmlFor="productName">
-              <Input id="productName" value={fields.productName} onChange={setField('productName')} />
-            </FormField>
-            <FormField label="Price (USD)" htmlFor="price">
-              <Input id="price" type="number" min="0" step="0.01" value={fields.price} onChange={setField('price')} prefix="$" />
-            </FormField>
+        <Card
+          title="Line items"
+          action={
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setFields(p => ({ ...p, lineItems: [...p.lineItems, { id: String(Date.now()), name: '', qty: '1', unitPrice: '' }] }))}
+              icon={
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+              }
+            >
+              Add
+            </Button>
+          }
+        >
+          <div className="space-y-4">
+            {fields.lineItems.map((item, idx) => (
+              <div key={item.id} className="space-y-2 pb-3 border-b border-gray-100 last:border-0 last:pb-0">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-gray-400">Item {idx + 1}</span>
+                  {fields.lineItems.length > 1 && (
+                    <button
+                      onClick={() => setFields(p => ({ ...p, lineItems: p.lineItems.filter((_, i) => i !== idx) }))}
+                      className="text-gray-400 hover:text-red-500 transition text-base leading-none"
+                      aria-label="Remove item"
+                    >×</button>
+                  )}
+                </div>
+                <FormField label="Name" htmlFor={`item-name-${item.id}`}>
+                  <Input
+                    id={`item-name-${item.id}`}
+                    value={item.name}
+                    placeholder="Product or service"
+                    onChange={e => setFields(p => ({ ...p, lineItems: p.lineItems.map((li, i) => i === idx ? { ...li, name: e.target.value } : li) }))}
+                  />
+                </FormField>
+                <div className="flex gap-2">
+                  <div className="w-20 flex-shrink-0">
+                    <FormField label="Qty" htmlFor={`item-qty-${item.id}`}>
+                      <Input
+                        id={`item-qty-${item.id}`}
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={item.qty}
+                        onChange={e => setFields(p => ({ ...p, lineItems: p.lineItems.map((li, i) => i === idx ? { ...li, qty: e.target.value } : li) }))}
+                      />
+                    </FormField>
+                  </div>
+                  <div className="flex-1">
+                    <FormField label="Unit price" htmlFor={`item-price-${item.id}`}>
+                      <Input
+                        id={`item-price-${item.id}`}
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={item.unitPrice}
+                        placeholder="0.00"
+                        onChange={e => setFields(p => ({ ...p, lineItems: p.lineItems.map((li, i) => i === idx ? { ...li, unitPrice: e.target.value } : li) }))}
+                        prefix="$"
+                      />
+                    </FormField>
+                  </div>
+                </div>
+                <div className="text-right text-xs text-gray-400">
+                  = {fmt((parseFloat(item.qty) || 0) * (parseFloat(item.unitPrice) || 0))}
+                </div>
+              </div>
+            ))}
             <FormField label="Tax rate" htmlFor="taxRate">
               <Input id="taxRate" type="number" min="0" max="100" step="0.1" value={fields.taxRate} onChange={setField('taxRate')} suffix="%" />
             </FormField>

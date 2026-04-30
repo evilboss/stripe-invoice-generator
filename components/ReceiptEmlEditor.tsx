@@ -198,9 +198,19 @@ ${divider}`
 
                 <!-- Download links -->
                 <table cellpadding="0" cellspacing="0"><tbody><tr>
-                  <td><a href="#" data-dl="invoice" style="font-family:${FF};color:#635bff;font-size:14px;line-height:16px;font-weight:500;text-decoration:none">&#8595;&nbsp;Download invoice</a></td>
-                  <td style="min-width:16px;width:16px;font-size:1px">&nbsp;</td>
-                  <td><a href="#" data-dl="receipt" style="font-family:${FF};color:#635bff;font-size:14px;line-height:16px;font-weight:500;text-decoration:none">&#8595;&nbsp;Download receipt</a></td>
+                  <td style="border:0;border-collapse:collapse;margin:0;padding:0">
+                    <a href="#" data-dl="invoice" style="border:0;margin:0;padding:0;text-decoration:none;outline:0">
+                      <img src="https://stripe-images.s3.amazonaws.com/emails/invoices_arrow_down.png" height="12" width="12" style="border:0;line-height:100%;margin-right:4px;vertical-align:middle">
+                      <span style="font-family:${FF};text-decoration:none;color:#7a7a7a;font-size:14px;line-height:16px;font-weight:500">Download invoice</span>
+                    </a>
+                  </td>
+                  <td style="border:0;border-collapse:collapse;margin:0;padding:0;min-width:16px;width:16px;font-size:1px">&nbsp;</td>
+                  <td style="border:0;border-collapse:collapse;margin:0;padding:0">
+                    <a href="#" data-dl="receipt" style="border:0;margin:0;padding:0;text-decoration:none;outline:0">
+                      <img src="https://stripe-images.s3.amazonaws.com/emails/invoices_arrow_down.png" height="12" width="12" style="border:0;line-height:100%;margin-right:4px;vertical-align:middle">
+                      <span style="font-family:${FF};text-decoration:none;color:#7a7a7a;font-size:14px;line-height:16px;font-weight:500">Download receipt</span>
+                    </a>
+                  </td>
                 </tr></tbody></table>
 
                 ${sp(32)}

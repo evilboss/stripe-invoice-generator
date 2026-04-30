@@ -172,7 +172,7 @@ export default function InvoiceForm() {
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           <div className="flex flex-col gap-6">
             <InvoiceDetailsSection register={register} setValue={setValue} errors={errors} />
-            <BusinessInfoSection register={register} control={control as never} errors={errors} />
+            <BusinessInfoSection register={register} control={control as never} errors={errors} setValue={setValue} />
             {!isClean && <PaymentInfoSection register={register} cardBrand={watch('paymentInfo.cardBrand')} />}
           </div>
           <div className="flex flex-col gap-6">

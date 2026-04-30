@@ -235,7 +235,7 @@ ${divider}`
             <table cellpadding="0" cellspacing="0" style="width:100%"><tbody><tr>
               <td style="min-width:32px;width:32px;font-size:1px">&nbsp;</td>
               <td style="font-family:${FF};font-size:14px;line-height:16px;color:#999999">
-                Questions? Contact us at <a href="mailto:${f.fromEmail}" style="color:#625afa!important;font-weight:bold;text-decoration:none;white-space:nowrap">${f.fromEmail}</a>.
+                Questions? Visit our <a href="${f.supportUrl}" style="color:#625afa!important;font-weight:bold;text-decoration:none;white-space:nowrap">support site</a>.
               </td>
               <td style="min-width:32px;width:32px;font-size:1px">&nbsp;</td>
             </tr></tbody></table>
@@ -291,7 +291,7 @@ ${taxLines}Total: ${fmt(total)}
 Amount paid: ${fmt(total)}
 
 ---
-Questions? Contact ${f.fromEmail}
+Questions? Visit our support site: ${f.supportUrl}
 
 X-Demo-Notice: Simulated receipt for training/demo purposes only`;
 }
@@ -524,6 +524,12 @@ export default function ReceiptEmlEditor() {
         <Card title="Payment">
           <FormField label="Card last 4 digits" htmlFor="cardLast4">
             <Input id="cardLast4" maxLength={4} value={fields.cardLast4} onChange={setField('cardLast4')} placeholder="4242" />
+          </FormField>
+        </Card>
+
+        <Card title="Support">
+          <FormField label="Support site URL" htmlFor="supportUrl" hint="Shown as "Visit our support site" link">
+            <Input id="supportUrl" type="url" value={fields.supportUrl} onChange={setField('supportUrl')} placeholder="https://support.example.com" />
           </FormField>
         </Card>
 

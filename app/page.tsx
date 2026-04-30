@@ -40,6 +40,15 @@ export default function Home() {
                   Receipt EML Editor
                 </Link>
               </li>
+              <li>
+                <Link
+                  href="/billing-eml"
+                  className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition text-gray-400 hover:text-gray-200 hover:bg-white/5"
+                >
+                  <span className="text-base">💳</span>
+                  Billing EML Editor
+                </Link>
+              </li>
             </ul>
 
             <p className="px-2 py-1.5 mt-4 text-xs font-semibold text-gray-500 uppercase tracking-widest">Sections</p>

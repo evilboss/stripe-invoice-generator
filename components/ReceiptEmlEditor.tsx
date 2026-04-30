@@ -48,7 +48,6 @@ interface Attachment {
   name: string;
   mimeType: string;
   base64: string; // base64, chunked at 76 chars for EML
-  label: 'invoice' | 'receipt' | 'other';
 }
 
 function fmt(n: number): string {

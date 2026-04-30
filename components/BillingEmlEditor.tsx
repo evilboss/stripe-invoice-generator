@@ -353,10 +353,7 @@ export default function BillingEmlEditor() {
     [fields, attachments, logoB64, logoMime]
   );
 
-  const previewHtml = useMemo(
-    () => buildBillingHtml(fields, logoPreviewSrc ?? ''),
-    [fields, logoPreviewSrc]
-  );
+  const previewHtml = buildBillingHtml(fields, logoPreviewSrc ?? '');
 
   function handleExport() {
     const blob = new Blob([eml], { type: 'message/rfc822' });

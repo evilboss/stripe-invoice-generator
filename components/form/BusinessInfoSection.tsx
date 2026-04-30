@@ -1,6 +1,7 @@
 'use client';
 
-import { UseFormRegister, Controller, Control, FieldErrors } from 'react-hook-form';
+import { useState } from 'react';
+import { UseFormRegister, Controller, Control, FieldErrors, UseFormSetValue } from 'react-hook-form';
 import { InvoiceData } from '@/types/invoice';
 import Card from '@/components/ui/Card';
 import FormField from '@/components/ui/FormField';
@@ -13,16 +14,44 @@ interface Props {
   register: UseFormRegister<InvoiceData>;
   control: Control<InvoiceData>;
   errors: FieldErrors<InvoiceData>;
+  setValue: UseFormSetValue<InvoiceData>;
 }
 
 const countryOptions = COUNTRIES.map((c) => ({ value: c, label: c }));
 
-export default function BusinessInfoSection({ register, control, errors }: Props) {
+type FetchStatus = 'idle' | 'loading' | 'ok' | 'error';
+
+export default function BusinessInfoSection({ register, control, errors, setValue }: Props) {
+  const [logoUrl, setLogoUrl] = useState('');
+  const [urlStatus, setUrlStatus] = useState<FetchStatus>('idle');
+
+  function fetchLogoUrl() {
+    const url = logoUrl.trim();
+    if (!url) return;
+    setUrlStatus('loading');
+    fetch(url)
+      .then(r => {
+        const mime = r.headers.get('content-type')?.split(';')[0]?.trim() ?? 'image/png';
+        return r.blob().then(blob => ({ blob, mime }));
+      })
+      .then(({ blob, mime }) => new Promise<string>((res, rej) => {
+        const reader = new FileReader();
+        reader.onload = () => res(reader.result as string);
+        reader.onerror = rej;
+        reader.readAsDataURL(blob);
+      }))
+      .then(dataUrl => {
+        setValue('from.logo', dataUrl);
+        setUrlStatus('ok');
+      })
+      .catch(() => setUrlStatus('error'));
+  }
+
   return (
     <Card title="From (Your Business)" subtitle="Your company details appear in the invoice header">
       <div className="grid grid-cols-1 gap-5">
         {/* Logo */}
-        <FormField label="Company Logo" hint="Stored as base64 — embedded directly in the PDF">
+        <FormField label="Company Logo" hint="Upload a file or enter a URL — embedded as base64 in the PDF">
           <Controller
             name="from.logo"
             control={control}
@@ -34,6 +63,27 @@ export default function BusinessInfoSection({ register, control, errors }: Props
               />
             )}
           />
+          <div className="flex gap-2 mt-2">
+            <Input
+              type="url"
+              value={logoUrl}
+              onChange={e => { setLogoUrl(e.target.value); setUrlStatus('idle'); }}
+              onBlur={fetchLogoUrl}
+              placeholder="https://example.com/logo.png"
+            />
+            <button
+              type="button"
+              onClick={fetchLogoUrl}
+              className="flex-shrink-0 px-3 py-2 text-xs font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition"
+            >
+              Fetch
+            </button>
+          </div>
+          {urlStatus !== 'idle' && (
+            <p className={`text-xs mt-1 ${urlStatus === 'ok' ? 'text-green-600' : urlStatus === 'error' ? 'text-red-500' : 'text-gray-400'}`}>
+              {urlStatus === 'ok' ? '✓ Logo fetched and embedded' : urlStatus === 'error' ? '✗ Could not fetch (CORS?)' : 'Fetching…'}
+            </p>
+          )}
         </FormField>
 
         <div className="grid grid-cols-2 gap-4">

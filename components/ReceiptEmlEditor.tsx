@@ -197,9 +197,9 @@ ${divider}`
 
                 <!-- Download links -->
                 <table cellpadding="0" cellspacing="0"><tbody><tr>
-                  <td><span style="font-family:${FF};color:#7a7a7a;font-size:14px;line-height:16px;font-weight:500">&#8595;&nbsp;Download invoice</span></td>
+                  <td><a href="#" data-dl="invoice" style="font-family:${FF};color:#635bff;font-size:14px;line-height:16px;font-weight:500;text-decoration:none">&#8595;&nbsp;Download invoice</a></td>
                   <td style="min-width:16px;width:16px;font-size:1px">&nbsp;</td>
-                  <td><span style="font-family:${FF};color:#7a7a7a;font-size:14px;line-height:16px;font-weight:500">&#8595;&nbsp;Download receipt</span></td>
+                  <td><a href="#" data-dl="receipt" style="font-family:${FF};color:#635bff;font-size:14px;line-height:16px;font-weight:500;text-decoration:none">&#8595;&nbsp;Download receipt</a></td>
                 </tr></tbody></table>
 
                 ${sp(32)}
@@ -607,6 +607,35 @@ export default function ReceiptEmlEditor() {
     URL.revokeObjectURL(url);
   }
 
+  function downloadAttachment(att: Attachment) {
+    const cleanB64 = att.base64.replace(/\r\n/g, '');
+    const binary = atob(cleanB64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const blob = new Blob([bytes], { type: att.mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = att.name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function handlePreviewClick(e: React.MouseEvent<HTMLDivElement>) {
+    const target = (e.target as HTMLElement).closest('[data-dl]');
+    if (!target) return;
+    e.preventDefault();
+    const action = target.getAttribute('data-dl');
+    if (action === 'invoice' && attachments.length > 0) {
+      downloadAttachment(attachments[0]);
+    } else {
+      // receipt, or invoice with no attachments → export the EML
+      handleExport();
+    }
+  }
+
   const tabBtn = (active: boolean) =>
     `px-4 py-1.5 text-sm rounded-lg font-medium transition ${
       active
@@ -939,6 +968,7 @@ export default function ReceiptEmlEditor() {
             <div className="relative min-h-full bg-[#f3f4f6]">
               <div
                 className="min-h-full"
+                onClick={handlePreviewClick}
                 dangerouslySetInnerHTML={{ __html: previewHtml }}
               />
               <button

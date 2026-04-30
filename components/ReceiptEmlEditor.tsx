@@ -14,6 +14,13 @@ function genCardLast4(): string {
   return String(Math.floor(1000 + Math.random() * 9000));
 }
 
+interface LineItem {
+  id: string;
+  name: string;
+  qty: string;
+  unitPrice: string;
+}
+
 interface Fields {
   companyName: string;
   fromEmail: string;
@@ -24,12 +31,12 @@ interface Fields {
   receiptNumber: string;
   invoiceNumber: string;
   subject: string;
-  productName: string;
-  price: string;
+  lineItems: LineItem[];
   taxRate: string;
   cardBrand: string;
   cardLast4: string;
   mailedBy: string;
+  signedBy: string;
   supportUrl: string;
   illustrationUrl: string;
   logoUrl: string;

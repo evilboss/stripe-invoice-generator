@@ -18,6 +18,7 @@ import {
   formatCurrency,
   formatDate,
 } from '@/lib/invoice-utils';
+import { getStripeCardAsset } from '@/lib/stripe-card-assets';
 
 Font.register({
   family: 'Helvetica',
@@ -274,6 +275,16 @@ function makeStyles(primary: string, accent: string, headerText: string) {
       fontFamily: 'Helvetica-Bold',
       flex: 1,
     },
+    paymentCardValue: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+    },
+    paymentCardIcon: {
+      height: 12,
+      objectFit: 'contain',
+    },
     footer: {
       position: 'absolute',
       bottom: 20,
@@ -351,6 +362,12 @@ interface Props {
 export default function InvoiceDocument({ data }: Props) {
   const styles = makeStyles(data.primaryColor, data.accentColor, data.headerTextColor ?? '#ffffff');
   const totals = computeTotals(data);
+  const cardAsset = data.paymentInfo.cardBrand ? getStripeCardAsset(data.paymentInfo.cardBrand) : null;
+  const cardDisplay = cardAsset
+    ? `${cardAsset.label}${data.paymentInfo.cardLast4 ? ` ending in ${data.paymentInfo.cardLast4}` : ''}`
+    : data.paymentInfo.cardLast4
+      ? `Card ending in ${data.paymentInfo.cardLast4}`
+      : '';
 
   const formatAddr = (addr: typeof data.from.address) =>
     [addr.line1, addr.line2, `${addr.city}${addr.state ? ', ' + addr.state : ''} ${addr.zipCode}`, addr.country]
@@ -566,13 +583,27 @@ export default function InvoiceDocument({ data }: Props) {
           </View>
 
           {/* Payment Info */}
-          {(data.paymentInfo.method || data.paymentInfo.bankName || data.paymentInfo.iban) && (
+          {(data.paymentInfo.method || cardDisplay || data.paymentInfo.bankName || data.paymentInfo.iban) && (
             <View style={styles.paymentBox}>
               <Text style={styles.paymentLabel}>Payment Information</Text>
               {data.paymentInfo.method && (
                 <View style={styles.paymentRow}>
                   <Text style={styles.paymentKey}>Method:</Text>
                   <Text style={styles.paymentValue}>{data.paymentInfo.method}</Text>
+                </View>
+              )}
+              {cardDisplay && (
+                <View style={styles.paymentRow}>
+                  <Text style={styles.paymentKey}>Card:</Text>
+                  <View style={styles.paymentCardValue}>
+                    {cardAsset && (
+                      <Image
+                        src={cardAsset.url}
+                        style={[styles.paymentCardIcon, { width: cardAsset.width * 0.75 }]}
+                      />
+                    )}
+                    <Text style={styles.paymentValue}>{cardDisplay}</Text>
+                  </View>
                 </View>
               )}
               {data.paymentInfo.bankName && (

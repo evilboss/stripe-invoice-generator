@@ -788,7 +788,7 @@ export default function ReceiptEmlEditor() {
           </div>
         </Card>
 
-        <Card title="Attachments" subtitle="First file → ↓ Download invoice link">
+        <Card title="Attachments">
           <div className="space-y-3">
             {/* Drop zone */}
             <div

@@ -8,7 +8,7 @@ export function generateInvoiceNumber(): string {
   return `INV-${year}-${random}`;
 }
 
-/** Stripe-style receipt number: NNNN-NNNN-NNNN (matches OpenAI/Anthropic). */
+/** Stripe-style receipt number: NNNN-NNNN-NNNN. */
 export function generateReceiptNumber(): string {
   const block = () => String(Math.floor(Math.random() * 9000) + 1000);
   return `${block()}-${block()}-${block()}`;

@@ -248,15 +248,15 @@ function nowDatetimeLocal(): string {
 
 export default function ReceiptEmlEditor() {
   const [fields, setFields] = useState<Fields>({
-    companyName: 'Anthropic',
-    fromEmail: 'receipts@anthropic.com',
+    companyName: 'Acme Corp',
+    fromEmail: 'receipts@acme.com',
     toEmail: 'user@example.com',
     sentDateTime: nowDatetimeLocal(),
     paymentDate: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
     billingPeriod: `Apr 1 – Apr 30, ${new Date().getFullYear()}`,
     receiptNumber: 'RCPT-2026-0001',
     invoiceNumber: 'INV-2026-0001',
-    subject: 'Your payment receipt from Anthropic',
+    subject: 'Your payment receipt from Acme Corp',
     productName: 'Claude Pro',
     price: '20.00',
     taxRate: '0',
@@ -501,12 +501,26 @@ export default function ReceiptEmlEditor() {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto relative">
           {tab === 'preview' ? (
-            <div
-              className="min-h-full bg-[#f3f4f6]"
-              dangerouslySetInnerHTML={{ __html: previewHtml }}
-            />
+            <div className="relative min-h-full bg-[#f3f4f6]">
+              <div
+                className="min-h-full"
+                dangerouslySetInnerHTML={{ __html: previewHtml }}
+              />
+              <button
+                onClick={handleExport}
+                className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-2.5 bg-[#3C50E0] hover:bg-[#3347C8] active:scale-95 text-white text-sm font-medium rounded-xl shadow-lg transition-all"
+                title="Download .eml file"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                Download .eml
+              </button>
+            </div>
           ) : (
             <pre className="p-6 text-xs font-mono text-green-400 bg-gray-900 min-h-full whitespace-pre-wrap break-all leading-relaxed">
               {eml}

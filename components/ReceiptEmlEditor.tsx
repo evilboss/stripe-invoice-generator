@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
@@ -823,70 +823,74 @@ export default function ReceiptEmlEditor() {
           </div>
         </Card>
 
-        <Card
-          title="Attachments"
-          subtitle="First file → ↓ Download invoice link"
-          action={
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => attachInputRef.current?.click()}
-              icon={
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <line x1="12" y1="5" x2="12" y2="19" />
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
-              }
+        <Card title="Attachments" subtitle="First file → ↓ Download invoice link">
+          <div className="space-y-3">
+            {/* Drop zone */}
+            <div
+              {...getRootProps()}
+              className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-4 cursor-pointer transition select-none
+                ${isDragActive ? 'border-[#635bff] bg-[#635bff]/5' : 'border-gray-200 hover:border-[#635bff]/50 hover:bg-gray-50'}`}
             >
-              Add
-            </Button>
-          }
-        >
-          {attachments.length === 0 ? (
-            <p className="text-xs text-gray-400 text-center py-2">No attachments — upload a file to link it to ↓ Download invoice</p>
-          ) : (
-            <ul className="space-y-2">
-              {attachments.map((att, i) => (
-                <li key={i} className="space-y-1.5 pb-2.5 border-b border-gray-100 last:border-0 last:pb-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="truncate text-gray-700 flex-1 min-w-0 text-xs" title={att.name}>
-                      {att.name}
-                    </span>
-                    <button
-                      onClick={() => downloadAttachment(att)}
-                      className="flex-shrink-0 text-gray-400 hover:text-[#635bff] transition"
-                      aria-label="Download"
-                      title="Download"
-                    >
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                        <polyline points="7 10 12 15 17 10"/>
-                        <line x1="12" y1="15" x2="12" y2="3"/>
+              <input {...getInputProps()} />
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={isDragActive ? '#635bff' : '#9ca3af'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              <p className={`text-xs font-medium ${isDragActive ? 'text-[#635bff]' : 'text-gray-500'}`}>
+                {isDragActive ? 'Drop files here' : 'Drag & drop or click to browse'}
+              </p>
+            </div>
+
+            {/* File list */}
+            {attachments.length > 0 && (
+              <ul className="space-y-2">
+                {attachments.map((att, i) => (
+                  <li key={i} className="space-y-1.5 pb-2.5 border-b border-gray-100 last:border-0 last:pb-0">
+                    <div className="flex items-center gap-1.5">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
                       </svg>
-                    </button>
-                    <button
-                      onClick={() => removeAttachment(i)}
-                      className="flex-shrink-0 text-gray-400 hover:text-red-500 transition"
-                      aria-label="Remove"
+                      <span className="truncate text-gray-700 flex-1 min-w-0 text-xs" title={att.name}>
+                        {att.name}
+                      </span>
+                      <button
+                        onClick={() => downloadAttachment(att)}
+                        className="flex-shrink-0 text-gray-400 hover:text-[#635bff] transition"
+                        aria-label="Download"
+                        title="Download"
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                          <polyline points="7 10 12 15 17 10"/>
+                          <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => removeAttachment(i)}
+                        className="flex-shrink-0 text-gray-400 hover:text-red-500 transition text-base leading-none"
+                        aria-label="Remove"
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <select
+                      value={att.label}
+                      onChange={e => setAttachments(prev => prev.map((a, j) =>
+                        j === i ? { ...a, label: e.target.value as Attachment['label'] } : a
+                      ))}
+                      className="w-full text-xs border border-gray-200 rounded-md px-2 py-1 bg-white text-gray-600 focus:outline-none focus:border-[#635bff] cursor-pointer"
                     >
-                      ×
-                    </button>
-                  </div>
-                  <select
-                    value={att.label}
-                    onChange={e => setAttachments(prev => prev.map((a, j) =>
-                      j === i ? { ...a, label: e.target.value as Attachment['label'] } : a
-                    ))}
-                    className="w-full text-xs border border-gray-200 rounded-md px-2 py-1 bg-white text-gray-600 focus:outline-none focus:border-blue-400 cursor-pointer"
-                  >
-                    <option value="invoice">↓ Invoice</option>
-                    <option value="receipt">↓ Receipt</option>
-                    <option value="other">📎 Other (embedded only)</option>
-                  </select>
-                </li>
-              ))}
-            </ul>
-          )}
+                      <option value="invoice">↓ Invoice</option>
+                      <option value="receipt">↓ Receipt</option>
+                      <option value="other">📎 Other (embedded only)</option>
+                    </select>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </Card>
 
         <Card title="Payment">

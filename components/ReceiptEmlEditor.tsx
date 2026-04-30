@@ -47,16 +47,57 @@ function chunkBase64(b64: string): string {
 }
 
 function buildReceiptHtml(f: Fields, subtotal: number, tax: number, total: number): string {
-  const taxRow =
-    tax > 0
-      ? `<tr>
-          <td style="padding:6px 12px;font-size:14px;color:#6b7280;">Tax (${f.taxRate}%)</td>
-          <td style="padding:6px 12px;font-size:14px;color:#111827;text-align:right;">${fmt(tax)}</td>
-         </tr>`
-      : '';
+  const FF = `-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Ubuntu,sans-serif`;
 
   const logoHtml = f.logo
-    ? `<img src="${f.logo}" alt="${f.companyName}" style="height:44px;max-width:140px;object-fit:contain;display:block;margin:0 auto 10px;" />`
+    ? `<img src="${f.logo}" alt="${f.companyName}" style="border-radius:100%;width:32px;height:32px;object-fit:contain;display:block;">`
+    : `<div style="border-radius:100%;width:32px;height:32px;background:#635bff;display:inline-flex;align-items:center;justify-content:center;color:white;font-size:14px;font-weight:600;font-family:-apple-system,sans-serif;">${f.companyName.charAt(0).toUpperCase()}</div>`;
+
+  const sp = (h: number) =>
+    `<table border="0" cellpadding="0" cellspacing="0" width="100%"><tbody><tr><td height="${h}" style="border:0;margin:0;padding:0;font-size:1px;line-height:1px"><div>&nbsp;</div></td></tr></tbody></table>`;
+
+  const divider =
+    `<table cellpadding="0" cellspacing="0" style="width:100%"><tbody>` +
+    `<tr><td colspan="3" height="16" style="font-size:1px;line-height:1px">&nbsp;</td></tr>` +
+    `<tr><td style="min-width:32px;width:32px;font-size:1px">&nbsp;</td><td height="1" style="height:1px;font-size:1px;background-color:#ebebeb;line-height:1px">&nbsp;</td><td style="min-width:32px;width:32px;font-size:1px">&nbsp;</td></tr>` +
+    `<tr><td colspan="3" height="16" style="font-size:1px;line-height:1px">&nbsp;</td></tr>` +
+    `</tbody></table>`;
+
+  const billRow = (label: string, value: string, muted = false) => {
+    const c = muted ? '#999999' : '#1a1a1a';
+    return `<table cellpadding="0" cellspacing="0" style="width:100%"><tbody>
+<tr>
+  <td style="min-width:32px;width:32px;font-size:1px">&nbsp;</td>
+  <td><span style="font-family:${FF};color:${c};font-size:14px;line-height:16px;font-weight:500;word-break:break-word">${label}</span></td>
+  <td style="min-width:16px;width:16px;font-size:1px">&nbsp;</td>
+  <td align="right" style="text-align:right;vertical-align:top"><span style="font-family:${FF};color:${c};font-size:14px;line-height:16px;font-weight:500;white-space:nowrap">${value}</span></td>
+  <td style="min-width:32px;width:32px;font-size:1px">&nbsp;</td>
+</tr>
+<tr><td colspan="5" height="0" style="font-size:1px;line-height:1px">&nbsp;</td></tr>
+</tbody></table>`;
+  };
+
+  const productLineItem =
+    `<table cellpadding="0" cellspacing="0" style="width:100%"><tbody>
+<tr>
+  <td style="min-width:32px;width:32px;font-size:1px">&nbsp;</td>
+  <td>
+    <span style="font-family:${FF};color:#1a1a1a;font-size:14px;line-height:16px;font-weight:500;word-break:break-word">${f.productName}</span>
+    <div style="height:3px"></div>
+    <span style="font-family:${FF};color:#999999;font-size:12px;line-height:14px">Qty 1</span>
+  </td>
+  <td style="min-width:16px;width:16px;font-size:1px">&nbsp;</td>
+  <td align="right" style="text-align:right;vertical-align:top"><span style="font-family:${FF};color:#1a1a1a;font-size:14px;line-height:16px;font-weight:500;white-space:nowrap">${fmt(subtotal)}</span></td>
+  <td style="min-width:32px;width:32px;font-size:1px">&nbsp;</td>
+</tr>
+<tr><td colspan="5" height="24" style="font-size:1px;line-height:1px">&nbsp;</td></tr>
+</tbody></table>`;
+
+  const taxSection = tax > 0
+    ? `${billRow('Total excluding tax', fmt(subtotal))}
+<table cellpadding="0" cellspacing="0" style="width:100%"><tbody><tr><td colspan="5" height="30" style="font-size:1px;line-height:1px">&nbsp;</td></tr></tbody></table>
+${billRow(`Tax (${f.taxRate}%)`, fmt(tax), true)}
+${divider}`
     : '';
 
   return `<!DOCTYPE html>
@@ -66,119 +107,183 @@ function buildReceiptHtml(f: Fields, subtotal: number, tax: number, total: numbe
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Payment Receipt</title>
 </head>
-<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:40px 20px;">
-<tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
+<body style="margin:0;padding:0;background:#f0f0eb;font-family:${FF};">
+<table bgcolor="#f0f0eb" border="0" cellpadding="0" cellspacing="0" width="100%" style="border:0;margin:0;padding:0">
+<tbody><tr>
+  <td style="font-size:16px">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td>
+  <td>
+    <table align="center" border="0" cellpadding="0" cellspacing="0" style="width:480px;min-width:480px;max-width:480px">
+    <tbody><tr><td>
 
-  <!-- Header -->
-  <tr>
-    <td style="background:#0d0d0d;border-radius:12px 12px 0 0;padding:24px 40px;text-align:center;">
-      ${logoHtml}
-      <span style="color:white;font-size:22px;font-weight:700;letter-spacing:-0.3px;">${f.companyName}</span>
-    </td>
-  </tr>
+      ${sp(58)}
 
-  <!-- Main card -->
-  <tr>
-    <td style="background:white;border-left:1px solid #e5e7eb;border-right:1px solid #e5e7eb;padding:40px;">
+      <!-- Company: logo + name -->
+      <table cellpadding="0" cellspacing="0"><tbody><tr>
+        <td valign="middle" height="32" style="height:32px">${logoHtml}</td>
+        <td style="width:12px">&nbsp;</td>
+        <td valign="middle"><span style="font-family:${FF};font-weight:500;color:#000000;font-size:16px">${f.companyName}</span></td>
+      </tr></tbody></table>
 
-      <p style="color:#6b7280;font-size:13px;text-transform:uppercase;letter-spacing:0.05em;margin:0 0 8px 0;">Payment receipt</p>
-      <p style="color:#111827;font-size:42px;font-weight:700;margin:0 0 32px 0;line-height:1;">${fmt(total)}</p>
+      ${sp(32)}
 
-      <!-- Details grid -->
-      <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:10px;margin-bottom:32px;overflow:hidden;">
-        <tr>
-          <td style="padding:14px 18px;border-bottom:1px solid #e5e7eb;width:50%;">
-            <span style="color:#6b7280;font-size:12px;display:block;margin-bottom:3px;">Date paid</span>
-            <span style="color:#111827;font-size:14px;font-weight:500;">${f.paymentDate}</span>
-          </td>
-          <td style="padding:14px 18px;border-bottom:1px solid #e5e7eb;border-left:1px solid #e5e7eb;width:50%;">
-            <span style="color:#6b7280;font-size:12px;display:block;margin-bottom:3px;">Payment method</span>
-            <span style="color:#111827;font-size:14px;font-weight:500;">Card ending in ${f.cardLast4}</span>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:14px 18px;">
-            <span style="color:#6b7280;font-size:12px;display:block;margin-bottom:3px;">Billing period</span>
-            <span style="color:#111827;font-size:14px;font-weight:500;">${f.billingPeriod}</span>
-          </td>
-          <td style="padding:14px 18px;border-left:1px solid #e5e7eb;">
-            <span style="color:#6b7280;font-size:12px;display:block;margin-bottom:3px;">Receipt number</span>
-            <span style="color:#111827;font-size:14px;font-weight:500;">${f.receiptNumber}</span>
-          </td>
-        </tr>
-      </table>
+      <!-- CARD 1: Summary -->
+      <table cellpadding="0" cellspacing="0" style="width:100%"><tbody><tr>
+        <td style="width:100%;border-radius:12px;background-color:#e3e8ee;padding:1px">
+          <table cellpadding="0" cellspacing="0" style="width:100%;background-color:#ffffff;border-radius:12px"><tbody><tr><td>
+            ${sp(32)}
+            <table cellpadding="0" cellspacing="0" style="width:100%"><tbody><tr>
+              <td style="min-width:32px;width:32px;font-size:1px">&nbsp;</td>
+              <td>
+                <!-- Amount header + illustration -->
+                <table cellpadding="0" cellspacing="0" style="width:100%"><tbody><tr>
+                  <td style="width:100%">
+                    <table cellpadding="0" cellspacing="0" style="width:100%"><tbody><tr><td style="padding-bottom:2px">
+                      <span style="font-family:${FF};color:#7a7a7a;font-size:14px;line-height:20px;font-weight:500">Receipt from ${f.companyName}</span>
+                    </td></tr></tbody></table>
+                    <table cellpadding="0" cellspacing="0" style="width:100%"><tbody><tr><td style="padding-bottom:2px">
+                      <span style="font-family:${FF};color:#1a1a1a;font-size:36px;line-height:40px;font-weight:600">${fmt(total)}</span>
+                    </td></tr></tbody></table>
+                    <table cellpadding="0" cellspacing="0" style="width:100%"><tbody><tr><td>
+                      <span style="font-family:${FF};color:#7a7a7a;font-size:14px;line-height:24px;font-weight:500">Paid ${f.paymentDate}</span>
+                    </td></tr></tbody></table>
+                    <table cellpadding="0" cellspacing="0" style="width:100%"><tbody>
+                      <tr><td height="16" style="font-size:1px;line-height:1px">&nbsp;</td></tr>
+                      <tr><td height="1" style="height:1px;font-size:1px;background-color:#ebebeb;line-height:1px">&nbsp;</td></tr>
+                      <tr><td height="12" style="font-size:1px;line-height:1px">&nbsp;</td></tr>
+                    </tbody></table>
+                  </td>
+                  <td style="width:76px;max-width:76px">
+                    <img src="https://stripe-images.s3.amazonaws.com/emails/invoices_invoice_illustration.png" width="94" height="91" style="border:0;display:block;border-radius:8px;margin:0 auto" alt="">
+                  </td>
+                </tr></tbody></table>
 
-      <!-- Line items -->
-      <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:0;">
-        <thead>
-          <tr style="background:#f9fafb;">
-            <th style="padding:10px 12px;text-align:left;font-size:12px;color:#6b7280;font-weight:500;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;">Description</th>
-            <th style="padding:10px 12px;text-align:right;font-size:12px;color:#6b7280;font-weight:500;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;width:60px;">Qty</th>
-            <th style="padding:10px 12px;text-align:right;font-size:12px;color:#6b7280;font-weight:500;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;width:100px;">Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td style="padding:12px;font-size:14px;color:#111827;border-bottom:1px solid #e5e7eb;">${f.productName}</td>
-            <td style="padding:12px;font-size:14px;color:#111827;text-align:right;border-bottom:1px solid #e5e7eb;">1</td>
-            <td style="padding:12px;font-size:14px;color:#111827;text-align:right;border-bottom:1px solid #e5e7eb;">${fmt(subtotal)}</td>
-          </tr>
-        </tbody>
-      </table>
+                <!-- Download links -->
+                <table cellpadding="0" cellspacing="0"><tbody><tr>
+                  <td><span style="font-family:${FF};color:#7a7a7a;font-size:14px;line-height:16px;font-weight:500">&#8595;&nbsp;Download invoice</span></td>
+                  <td style="min-width:16px;width:16px;font-size:1px">&nbsp;</td>
+                  <td><span style="font-family:${FF};color:#7a7a7a;font-size:14px;line-height:16px;font-weight:500">&#8595;&nbsp;Download receipt</span></td>
+                </tr></tbody></table>
 
-      <!-- Totals -->
-      <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:32px;">
-        <tr>
-          <td style="padding:8px 12px;font-size:14px;color:#6b7280;">Subtotal</td>
-          <td style="padding:8px 12px;font-size:14px;color:#111827;text-align:right;">${fmt(subtotal)}</td>
-        </tr>
-        ${taxRow}
-        <tr>
-          <td style="padding:8px 12px;font-size:14px;font-weight:600;color:#111827;border-top:1px solid #e5e7eb;">Total</td>
-          <td style="padding:8px 12px;font-size:14px;font-weight:600;color:#111827;text-align:right;border-top:1px solid #e5e7eb;">${fmt(total)}</td>
-        </tr>
-        <tr style="background:#f9fafb;">
-          <td style="padding:8px 12px;font-size:14px;font-weight:600;color:#111827;border-top:1px solid #e5e7eb;">Amount paid</td>
-          <td style="padding:8px 12px;font-size:14px;font-weight:600;color:#111827;text-align:right;border-top:1px solid #e5e7eb;">${fmt(total)}</td>
-        </tr>
-      </table>
+                ${sp(32)}
 
-      <p style="font-size:13px;color:#9ca3af;margin:0;">Questions? Contact us at ${f.fromEmail}. Invoice number: ${f.invoiceNumber}</p>
-    </td>
-  </tr>
+                <!-- Key-value pairs -->
+                <table cellpadding="0" cellspacing="0" style="width:100%"><tbody>
+                  <tr>
+                    <td style="vertical-align:top;white-space:nowrap"><span style="font-family:${FF};color:#7a7a7a;font-size:14px;line-height:16px">Receipt number</span></td>
+                    <td style="width:24px">&nbsp;</td>
+                    <td align="right"><span style="font-family:${FF};color:#1a1a1a;font-size:14px;line-height:16px">${f.receiptNumber}</span></td>
+                  </tr>
+                  <tr><td colspan="2" height="8" style="font-size:1px;line-height:1px">&nbsp;</td></tr>
+                  <tr>
+                    <td style="vertical-align:top;white-space:nowrap"><span style="font-family:${FF};color:#7a7a7a;font-size:14px;line-height:16px">Invoice number</span></td>
+                    <td style="width:24px">&nbsp;</td>
+                    <td align="right"><span style="font-family:${FF};color:#1a1a1a;font-size:14px;line-height:16px">${f.invoiceNumber}</span></td>
+                  </tr>
+                  <tr><td colspan="2" height="8" style="font-size:1px;line-height:1px">&nbsp;</td></tr>
+                  <tr>
+                    <td style="vertical-align:top;white-space:nowrap"><span style="font-family:${FF};color:#7a7a7a;font-size:14px;line-height:16px">Payment method</span></td>
+                    <td style="width:24px">&nbsp;</td>
+                    <td align="right"><span style="font-family:${FF};color:#1a1a1a;font-size:14px;line-height:16px">Card ending in ${f.cardLast4}</span></td>
+                  </tr>
+                </tbody></table>
+              </td>
+              <td style="min-width:32px;width:32px;font-size:1px">&nbsp;</td>
+            </tr></tbody></table>
+            ${sp(24)}
+          </td></tr></tbody></table>
+        </td>
+      </tr></tbody></table>
 
-  <!-- Footer -->
-  <tr>
-    <td style="background:#f9fafb;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;padding:20px 40px;text-align:center;">
-      <p style="color:#9ca3af;font-size:13px;margin:0 0 4px 0;">Powered by <strong style="color:#635bff;">Stripe</strong></p>
-      <p style="color:#d1d5db;font-size:11px;margin:0;">X-Demo-Notice: Simulated receipt for training/demo purposes only</p>
-    </td>
-  </tr>
+      ${sp(20)}
 
-</table>
-</td></tr>
-</table>
+      <!-- CARD 2: Line items -->
+      <table cellpadding="0" cellspacing="0" style="width:100%"><tbody><tr>
+        <td style="width:100%;border-radius:12px;background-color:#e3e8ee;padding:1px">
+          <table cellpadding="0" cellspacing="0" style="width:100%;background-color:#ffffff;border-radius:12px"><tbody><tr><td>
+            ${sp(32)}
+
+            <!-- Receipt # title -->
+            <table cellpadding="0" cellspacing="0" style="width:100%"><tbody><tr>
+              <td style="min-width:32px;width:32px;font-size:1px">&nbsp;</td>
+              <td nowrap><span style="font-family:${FF};color:#1a1a1a;font-size:16px;line-height:20px;font-weight:500;white-space:nowrap">Receipt #${f.receiptNumber}</span></td>
+            </tr></tbody></table>
+
+            ${sp(26)}
+
+            <!-- Billing period -->
+            <table cellpadding="0" cellspacing="0" style="width:100%"><tbody><tr>
+              <td style="min-width:32px;width:32px;font-size:1px">&nbsp;</td>
+              <td><span style="font-family:${FF};color:#7a7a7a;font-size:13px;line-height:16px;font-weight:500">${f.billingPeriod}</span></td>
+            </tr></tbody></table>
+
+            ${sp(8)}
+
+            ${productLineItem}
+            ${billRow('Subtotal', fmt(subtotal))}
+            ${divider}
+            ${taxSection}
+            ${billRow('Total', fmt(total))}
+            ${divider}
+            ${billRow('Amount paid', fmt(total))}
+            ${divider}
+
+            <!-- Support -->
+            <table cellpadding="0" cellspacing="0" style="width:100%"><tbody><tr>
+              <td style="min-width:32px;width:32px;font-size:1px">&nbsp;</td>
+              <td style="font-family:${FF};font-size:14px;line-height:16px;color:#999999">
+                Questions? Contact us at <a href="mailto:${f.fromEmail}" style="color:#625afa!important;font-weight:bold;text-decoration:none;white-space:nowrap">${f.fromEmail}</a>.
+              </td>
+              <td style="min-width:32px;width:32px;font-size:1px">&nbsp;</td>
+            </tr></tbody></table>
+
+            ${sp(24)}
+          </td></tr></tbody></table>
+        </td>
+      </tr></tbody></table>
+
+      ${sp(32)}
+
+      <!-- Footer: Powered by Stripe -->
+      <table cellpadding="0" cellspacing="0" style="width:100%"><tbody><tr>
+        <td style="width:100%;text-align:center;color:#000000;opacity:0.5">
+          <span style="font-family:${FF};font-size:12px;line-height:20px">
+            <p style="border:0;margin:0;padding:0;font-family:-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif">
+              Powered by <img src="https://stripe-images.s3.amazonaws.com/emails/invoices_stripe_logo_dark.png" height="24" width="51" align="middle" alt="stripe logo" style="border:0;line-height:100%;vertical-align:middle">
+            </p>
+          </span>
+        </td>
+      </tr></tbody></table>
+
+      ${sp(64)}
+
+    </td></tr></tbody></table>
+  </td>
+  <td style="font-size:16px">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td>
+</tr></tbody></table>
 </body>
 </html>`;
 }
 
 function buildPlainText(f: Fields, subtotal: number, tax: number, total: number): string {
-  const taxLine = tax > 0 ? `Tax (${f.taxRate}%): ${fmt(tax)}\n` : '';
+  const taxLines = tax > 0
+    ? `Total excluding tax: ${fmt(subtotal)}\nTax (${f.taxRate}%): ${fmt(tax)}\n`
+    : '';
   return `${f.companyName} — Payment Receipt
 
-Amount paid: ${fmt(total)}
-Date paid: ${f.paymentDate}
-Billing period: ${f.billingPeriod}
+Receipt from ${f.companyName}
+${fmt(total)}
+Paid ${f.paymentDate}
+
 Receipt number: ${f.receiptNumber}
 Invoice number: ${f.invoiceNumber}
 Payment method: Card ending in ${f.cardLast4}
 
---- Summary ---
+--- Receipt #${f.receiptNumber} ---
+${f.billingPeriod}
+
 ${f.productName} x1: ${fmt(subtotal)}
 Subtotal: ${fmt(subtotal)}
-${taxLine}Total: ${fmt(total)}
+${taxLines}Total: ${fmt(total)}
 Amount paid: ${fmt(total)}
 
 ---

@@ -4,7 +4,7 @@ import ReceiptEmlEditor from '@/components/ReceiptEmlEditor';
 
 export const metadata: Metadata = {
   title: 'Receipt EML Editor — Create Demo Email Receipts',
-  description: 'Create and export Anthropic/Stripe-style email receipts as .eml files for training and demo purposes.',
+  description: 'Create and export Stripe-style email receipts as .eml files for training and demo purposes.',
 };
 
 export default function ReceiptEmlPage() {

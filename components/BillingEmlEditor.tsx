@@ -284,10 +284,13 @@ export default function BillingEmlEditor() {
 
   // ── logo fetch ──────────────────────────────────────────────────────────────
   type FetchStatus = 'idle' | 'loading' | 'ok' | 'error';
+  const [logoMode, setLogoMode] = useState<'url' | 'svg'>('url');
+  const [logoSvgMarkup, setLogoSvgMarkup] = useState('');
   const [logoData, setLogoData] = useState<{ b64: string; mime: string } | null>(null);
   const [logoStatus, setLogoStatus] = useState<FetchStatus>('idle');
 
   useEffect(() => {
+    if (logoMode !== 'url') { setLogoData(null); setLogoStatus('idle'); return; }
     const url = fields.logoUrl.trim();
     if (!url) { setLogoData(null); setLogoStatus('idle'); return; }
     setLogoStatus('loading');
@@ -306,7 +309,7 @@ export default function BillingEmlEditor() {
       .then(data => { if (!cancelled) { setLogoData(data); setLogoStatus('ok'); } })
       .catch(() => { if (!cancelled) { setLogoData(null); setLogoStatus('error'); } });
     return () => { cancelled = true; };
-  }, [fields.logoUrl]);
+  }, [fields.logoUrl, logoMode]);
 
   // ── attachments ─────────────────────────────────────────────────────────────
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -344,12 +347,24 @@ export default function BillingEmlEditor() {
   }
 
   // ── EML + preview ───────────────────────────────────────────────────────────
-  const logoB64 = logoData?.b64 ?? null;
-  const logoMime = logoData?.mime ?? null;
-  const logoPreviewSrc = fields.logoUrl.trim() || null;
+
+  // Safe UTF-8 base64 for SVG markup
+  function svgToB64(svg: string): string {
+    return btoa(unescape(encodeURIComponent(svg)));
+  }
+
+  const svgTrimmed = logoSvgMarkup.trim();
+  const isSvgMode = logoMode === 'svg' && svgTrimmed.length > 0;
+
+  const logoB64 = isSvgMode ? svgToB64(svgTrimmed) : (logoData?.b64 ?? null);
+  const logoMime = isSvgMode ? 'image/svg+xml' : (logoData?.mime ?? null);
+  const logoPreviewSrc = isSvgMode
+    ? `data:image/svg+xml;base64,${svgToB64(svgTrimmed)}`
+    : (fields.logoUrl.trim() || null);
 
   const eml = useMemo(
     () => buildEml(fields, attachments, logoB64, logoMime),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [fields, attachments, logoB64, logoMime]
   );
 
@@ -412,27 +427,73 @@ export default function BillingEmlEditor() {
 
         <Card title="Logo">
           <div className="space-y-3">
-            <FormField label="Logo image URL" htmlFor="logoUrl" hint="Fetched and embedded in EML via CID">
-              <Input id="logoUrl" type="url" value={fields.logoUrl} onChange={setField('logoUrl')} placeholder="https://example.com/logo.png" />
-            </FormField>
-            {fields.logoUrl && (
-              <div className="flex items-center gap-2">
-                <img
-                  src={fields.logoUrl}
-                  alt="logo preview"
-                  className="h-8 max-w-[120px] object-contain border border-gray-100 bg-gray-50 rounded p-1"
-                  onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                />
-                <span className={`text-xs font-medium ${
-                  logoStatus === 'ok' ? 'text-green-600' :
-                  logoStatus === 'error' ? 'text-red-500' :
-                  logoStatus === 'loading' ? 'text-gray-400' : 'text-gray-400'
-                }`}>
-                  {logoStatus === 'ok' ? '✓ Embedded in EML' :
-                   logoStatus === 'error' ? '✗ Could not fetch (CORS?)' :
-                   logoStatus === 'loading' ? 'Fetching…' : ''}
-                </span>
-              </div>
+            {/* Mode toggle */}
+            <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-medium">
+              <button
+                type="button"
+                onClick={() => setLogoMode('url')}
+                className={`flex-1 py-1.5 transition ${logoMode === 'url' ? 'bg-[#635BFF] text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+              >
+                Image URL
+              </button>
+              <button
+                type="button"
+                onClick={() => setLogoMode('svg')}
+                className={`flex-1 py-1.5 transition ${logoMode === 'svg' ? 'bg-[#635BFF] text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+              >
+                Inline SVG
+              </button>
+            </div>
+
+            {logoMode === 'url' ? (
+              <>
+                <FormField label="Logo image URL" htmlFor="logoUrl" hint="Fetched and embedded in EML via CID">
+                  <Input id="logoUrl" type="url" value={fields.logoUrl} onChange={setField('logoUrl')} placeholder="https://example.com/logo.png" />
+                </FormField>
+                {fields.logoUrl && (
+                  <div className="flex items-center gap-2">
+                    <img
+                      src={fields.logoUrl}
+                      alt="logo preview"
+                      className="h-8 max-w-[120px] object-contain border border-gray-100 bg-gray-50 rounded p-1"
+                      onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
+                    <span className={`text-xs font-medium ${
+                      logoStatus === 'ok' ? 'text-green-600' :
+                      logoStatus === 'error' ? 'text-red-500' :
+                      logoStatus === 'loading' ? 'text-gray-400' : 'text-gray-400'
+                    }`}>
+                      {logoStatus === 'ok' ? '✓ Embedded in EML' :
+                       logoStatus === 'error' ? '✗ Could not fetch (CORS?)' :
+                       logoStatus === 'loading' ? 'Fetching…' : ''}
+                    </span>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <FormField label="SVG markup" htmlFor="logoSvgMarkup" hint="Paste raw <svg>…</svg> — base64-encoded and embedded via CID">
+                  <textarea
+                    id="logoSvgMarkup"
+                    value={logoSvgMarkup}
+                    onChange={e => setLogoSvgMarkup(e.target.value)}
+                    placeholder={'<svg xmlns="http://www.w3.org/2000/svg" …>…</svg>'}
+                    rows={5}
+                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-mono text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#635BFF]/30 focus:border-[#635BFF] resize-y"
+                    spellCheck={false}
+                  />
+                </FormField>
+                {svgTrimmed && (
+                  <div className="flex items-center gap-2">
+                    <img
+                      src={`data:image/svg+xml;base64,${svgToB64(svgTrimmed)}`}
+                      alt="svg preview"
+                      className="h-8 max-w-[120px] object-contain border border-gray-100 bg-gray-50 rounded p-1"
+                    />
+                    <span className="text-xs font-medium text-green-600">✓ Embedded in EML</span>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </Card>

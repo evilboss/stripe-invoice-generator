@@ -10,6 +10,8 @@ import Card from '@/components/ui/Card';
 // ─── types ───────────────────────────────────────────────────────────────────
 
 interface Fields {
+  // identity
+  companyName: string;
   // email headers
   fromEmail: string;
   toEmail: string;
@@ -95,7 +97,7 @@ function buildBillingHtml(f: Fields, logoSrc: string): string {
                   <td valign="top" style="padding-top:0;padding-bottom:0;text-align:left;font-family:${FF}">
                     <img src="${logoSrc}" width="560" height="168"
                       style="width:140px;max-width:100%;padding-bottom:0;display:inline!important;vertical-align:bottom;height:auto;line-height:100%;text-decoration:none;border:0;outline:none"
-                      alt="${f.fromEmail}">
+                      alt="${f.companyName}">
                   </td>
                 </tr></tbody>
               </table>
@@ -107,7 +109,7 @@ function buildBillingHtml(f: Fields, logoSrc: string): string {
             <td align="left" bgcolor="#ffffff" style="padding:16px 24px;font-size:16px;line-height:24px;font-family:${FF}">
               <p style="margin:0">Hi ${f.recipientName},</p>
               <p style="margin:0;margin-top:16px">
-                We charged ${f.chargeAmount} to ${f.paymentMethodText} to fund your ${f.productName}.
+                We charged ${f.chargeAmount} to ${f.paymentMethodText} to fund your <span>${f.companyName}</span> ${f.productName}.
               </p>
               <p style="margin:0;margin-top:16px">
                 You may review your <a href="${f.billingHistoryUrl}" style="font-family:${FF};color:${f.linkColor}">${f.billingHistoryLinkText}</a> at any time.
@@ -150,7 +152,7 @@ function buildBillingHtml(f: Fields, logoSrc: string): string {
 function buildPlainText(f: Fields): string {
   return `Hi ${f.recipientName},
 
-We charged ${f.chargeAmount} to ${f.paymentMethodText} to fund your ${f.productName}.
+We charged ${f.chargeAmount} to ${f.paymentMethodText} to fund your ${f.companyName} ${f.productName}.
 
 You may review your ${f.billingHistoryLinkText} at any time:
 ${f.billingHistoryUrl}
@@ -252,6 +254,7 @@ ${attachmentParts}
 
 export default function BillingEmlEditor() {
   const [fields, setFields] = useState<Fields>({
+    companyName: 'OpenAI',
     fromEmail: 'billing@openai.com',
     toEmail: 'user@example.com',
     subject: 'Your OpenAI billing receipt',
@@ -381,6 +384,9 @@ export default function BillingEmlEditor() {
 
         <Card title="Sender / Recipient">
           <div className="space-y-3">
+            <FormField label="Company name" htmlFor="companyName" hint="Used in the email body and logo alt text">
+              <Input id="companyName" value={fields.companyName} onChange={setField('companyName')} placeholder="OpenAI" />
+            </FormField>
             <FormField label="From email" htmlFor="fromEmail">
               <Input id="fromEmail" type="email" value={fields.fromEmail} onChange={setField('fromEmail')} />
             </FormField>

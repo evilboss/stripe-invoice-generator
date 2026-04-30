@@ -58,6 +58,8 @@ export interface InvoiceAdjustments {
 
 export interface PaymentInfo {
   method?: string;
+  cardBrand?: string;
+  cardLast4?: string;
   bankName?: string;
   accountName?: string;
   accountNumber?: string;

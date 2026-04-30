@@ -29,6 +29,7 @@ interface Fields {
   taxRate: string;
   cardBrand: string;
   cardLast4: string;
+  mailedBy: string;
   supportUrl: string;
   illustrationUrl: string;
   logoUrl: string;
@@ -345,11 +346,15 @@ function buildEml(
   const mixedBoundary = `mixed_${rand()}_${Date.now()}`;
   const hasAttachments = attachments.length > 0;
 
+  const mailedByHeaders = f.mailedBy.trim()
+    ? `\nReturn-Path: <noreply@${f.mailedBy.trim()}>\nSender: noreply@${f.mailedBy.trim()}`
+    : '';
+
   const headers = `From: ${f.companyName} <${f.fromEmail}>
 To: ${f.toEmail}
 Subject: ${f.subject}
 Date: ${date}
-Message-ID: ${messageId}
+Message-ID: ${messageId}${mailedByHeaders}
 MIME-Version: 1.0
 X-Demo-Notice: Simulated receipt for training/demo purposes only`;
 
@@ -433,6 +438,7 @@ export default function ReceiptEmlEditor() {
     taxRate: '0',
     cardBrand: 'visa',
     cardLast4: '',
+    mailedBy: '',
     supportUrl: 'https://support.example.com',
     illustrationUrl: 'https://stripe-images.s3.amazonaws.com/emails/invoices_invoice_illustration.png',
     logoUrl: '',
@@ -628,6 +634,9 @@ export default function ReceiptEmlEditor() {
             </FormField>
             <FormField label="Subject line" htmlFor="subject">
               <Input id="subject" value={fields.subject} onChange={setField('subject')} />
+            </FormField>
+            <FormField label="Mailed-by domain" htmlFor="mailedBy" hint="Optional — sets Return-Path & Sender headers (e.g. stripe.com)">
+              <Input id="mailedBy" value={fields.mailedBy} onChange={setField('mailedBy')} placeholder="stripe.com" />
             </FormField>
           </div>
         </Card>

@@ -178,8 +178,8 @@ ${divider}`
                       <tr><td height="12" style="font-size:1px;line-height:1px">&nbsp;</td></tr>
                     </tbody></table>
                   </td>
-                  <td style="width:76px;max-width:76px">
-                    <img src="${illustrationSrc}" width="94" height="91" style="border:0;display:block;border-radius:8px;margin:0 auto" alt="">
+                  <td style="border:0;border-collapse:collapse;margin:0;padding:0;width:76px;max-width:76px">
+                    <img src="${illustrationSrc}" width="94" height="91" style="border:0;margin:0 auto;padding:0;display:block;border-radius:8px;margin:0 auto" alt="invoice illustration">
                   </td>
                 </tr></tbody></table>
 
@@ -422,22 +422,37 @@ export default function ReceiptEmlEditor() {
     companyName: 'Acme Corp',
     fromEmail: 'receipts@acme.com',
     toEmail: 'user@example.com',
-    sentDateTime: nowDatetimeLocal(),
-    paymentDate: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
-    billingPeriod: `Apr 1 – Apr 30, ${new Date().getFullYear()}`,
-    receiptNumber: generateReceiptNumber(),
-    invoiceNumber: generateInvoiceNumber(),
+    sentDateTime: '',
+    paymentDate: '',
+    billingPeriod: '',
+    receiptNumber: '',
+    invoiceNumber: '',
     subject: 'Your payment receipt from Acme Corp',
     productName: '',
     price: '',
     taxRate: '0',
     cardBrand: 'visa',
-    cardLast4: genCardLast4(),
+    cardLast4: '',
     supportUrl: 'https://support.example.com',
     illustrationUrl: 'https://stripe-images.s3.amazonaws.com/emails/invoices_invoice_illustration.png',
     logoUrl: '',
     logo: undefined,
   });
+
+  // Populate all non-deterministic values client-side only to avoid SSR/hydration mismatch
+  useEffect(() => {
+    const now = new Date();
+    setFields(prev => ({
+      ...prev,
+      sentDateTime: nowDatetimeLocal(),
+      paymentDate: now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+      billingPeriod: `${now.toLocaleDateString('en-US', { month: 'short' })} 1 – ${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${now.getFullYear()}`,
+      receiptNumber: generateReceiptNumber(),
+      invoiceNumber: generateInvoiceNumber(),
+      cardLast4: genCardLast4(),
+    }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [tab, setTab] = useState<'preview' | 'source'>('preview');

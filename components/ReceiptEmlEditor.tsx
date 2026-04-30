@@ -47,6 +47,7 @@ interface Attachment {
   name: string;
   mimeType: string;
   base64: string; // base64, chunked at 76 chars for EML
+  label: 'invoice' | 'receipt' | 'other';
 }
 
 function fmt(n: number): string {
@@ -546,10 +547,12 @@ export default function ReceiptEmlEditor() {
         const dataUrl = ev.target?.result as string;
         const [meta, data] = dataUrl.split(',');
         const mimeType = meta.match(/:(.*?);/)?.[1] ?? 'application/octet-stream';
-        setAttachments(prev => [
-          ...prev,
-          { name: file.name, mimeType, base64: chunkBase64(data) },
-        ]);
+        setAttachments(prev => {
+          const hasInvoice = prev.some(a => a.label === 'invoice');
+          const hasReceipt = prev.some(a => a.label === 'receipt');
+          const label: Attachment['label'] = !hasInvoice ? 'invoice' : !hasReceipt ? 'receipt' : 'other';
+          return [...prev, { name: file.name, mimeType, base64: chunkBase64(data), label }];
+        });
       };
       reader.readAsDataURL(file);
     });
@@ -627,13 +630,10 @@ export default function ReceiptEmlEditor() {
     const target = (e.target as HTMLElement).closest('[data-dl]');
     if (!target) return;
     e.preventDefault();
-    const action = target.getAttribute('data-dl');
-    if (action === 'invoice' && attachments.length > 0) {
-      downloadAttachment(attachments[0]);
-    } else {
-      // receipt, or invoice with no attachments → export the EML
-      handleExport();
-    }
+    const action = target.getAttribute('data-dl') as 'invoice' | 'receipt';
+    const match = attachments.find(a => a.label === action);
+    if (match) downloadAttachment(match);
+    else handleExport();
   }
 
   const tabBtn = (active: boolean) =>
@@ -645,6 +645,14 @@ export default function ReceiptEmlEditor() {
 
   return (
     <div className="flex h-full min-h-0">
+      {/* Hidden file input — kept at root so the ref is always in the DOM */}
+      <input
+        ref={attachInputRef}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={handleAttachFiles}
+      />
       {/* Left: Form fields */}
       <aside className="w-72 flex-shrink-0 border-r border-gray-100 bg-white overflow-y-auto p-5 space-y-5">
         <Card title="Sender">
@@ -810,6 +818,72 @@ export default function ReceiptEmlEditor() {
           </div>
         </Card>
 
+        <Card
+          title="Attachments"
+          subtitle="First file → ↓ Download invoice link"
+          action={
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => attachInputRef.current?.click()}
+              icon={
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+              }
+            >
+              Add
+            </Button>
+          }
+        >
+          {attachments.length === 0 ? (
+            <p className="text-xs text-gray-400 text-center py-2">No attachments — upload a file to link it to ↓ Download invoice</p>
+          ) : (
+            <ul className="space-y-2">
+              {attachments.map((att, i) => (
+                <li key={i} className="space-y-1.5 pb-2.5 border-b border-gray-100 last:border-0 last:pb-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="truncate text-gray-700 flex-1 min-w-0 text-xs" title={att.name}>
+                      {att.name}
+                    </span>
+                    <button
+                      onClick={() => downloadAttachment(att)}
+                      className="flex-shrink-0 text-gray-400 hover:text-[#635bff] transition"
+                      aria-label="Download"
+                      title="Download"
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => removeAttachment(i)}
+                      className="flex-shrink-0 text-gray-400 hover:text-red-500 transition"
+                      aria-label="Remove"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <select
+                    value={att.label}
+                    onChange={e => setAttachments(prev => prev.map((a, j) =>
+                      j === i ? { ...a, label: e.target.value as Attachment['label'] } : a
+                    ))}
+                    className="w-full text-xs border border-gray-200 rounded-md px-2 py-1 bg-white text-gray-600 focus:outline-none focus:border-blue-400 cursor-pointer"
+                  >
+                    <option value="invoice">↓ Invoice</option>
+                    <option value="receipt">↓ Receipt</option>
+                    <option value="other">📎 Other (embedded only)</option>
+                  </select>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
         <Card title="Payment">
           <div className="space-y-3">
             <FormField label="Card brand" htmlFor="cardBrand">
@@ -879,55 +953,6 @@ export default function ReceiptEmlEditor() {
           </div>
         </Card>
 
-        <Card
-          title="Attachments"
-          subtitle="Added as base64 MIME parts"
-          action={
-            <>
-              <input
-                ref={attachInputRef}
-                type="file"
-                multiple
-                className="hidden"
-                onChange={handleAttachFiles}
-              />
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => attachInputRef.current?.click()}
-                icon={
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <line x1="12" y1="5" x2="12" y2="19" />
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>
-                }
-              >
-                Add
-              </Button>
-            </>
-          }
-        >
-          {attachments.length === 0 ? (
-            <p className="text-xs text-gray-400 text-center py-2">No attachments</p>
-          ) : (
-            <ul className="space-y-2">
-              {attachments.map((att, i) => (
-                <li key={i} className="flex items-center justify-between gap-2 text-sm">
-                  <span className="truncate text-gray-700 flex-1" title={att.name}>
-                    {att.name}
-                  </span>
-                  <button
-                    onClick={() => removeAttachment(i)}
-                    className="flex-shrink-0 text-gray-400 hover:text-red-500 transition"
-                    aria-label="Remove"
-                  >
-                    ×
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
       </aside>
 
       {/* Right: Preview / Source */}

@@ -74,8 +74,7 @@ function buildReceiptHtml(
   tax: number,
   total: number,
   illustrationSrc: string,
-  logoSrc: string | null,
-  downloadHrefs?: { invoice?: string; receipt?: string }
+  logoSrc: string | null
 ): string {
   const FF = `-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Ubuntu,sans-serif`;
 
@@ -194,23 +193,6 @@ ${divider}`
                   </td>
                   <td style="border:0;border-collapse:collapse;margin:0;padding:0;width:76px;max-width:76px">
                     <img src="${illustrationSrc}" width="94" height="91" style="border:0;margin:0 auto;padding:0;display:block;border-radius:8px;margin:0 auto" alt="invoice illustration">
-                  </td>
-                </tr></tbody></table>
-
-                <!-- Download links -->
-                <table cellpadding="0" cellspacing="0"><tbody><tr>
-                  <td style="border:0;border-collapse:collapse;margin:0;padding:0">
-                    <a href="${downloadHrefs?.invoice ?? '#'}" ${downloadHrefs?.invoice ? '' : 'data-dl="invoice"'} style="border:0;margin:0;padding:0;text-decoration:none;outline:0">
-                      <img src="https://stripe-images.s3.amazonaws.com/emails/invoices_arrow_down.png" height="12" width="12" style="border:0;line-height:100%;margin-right:4px;vertical-align:middle">
-                      <span style="font-family:${FF};text-decoration:none;color:#7a7a7a;font-size:14px;line-height:16px;font-weight:500">Download invoice</span>
-                    </a>
-                  </td>
-                  <td style="border:0;border-collapse:collapse;margin:0;padding:0;min-width:16px;width:16px;font-size:1px">&nbsp;</td>
-                  <td style="border:0;border-collapse:collapse;margin:0;padding:0">
-                    <a href="${downloadHrefs?.receipt ?? '#'}" ${downloadHrefs?.receipt ? '' : 'data-dl="receipt"'} style="border:0;margin:0;padding:0;text-decoration:none;outline:0">
-                      <img src="https://stripe-images.s3.amazonaws.com/emails/invoices_arrow_down.png" height="12" width="12" style="border:0;line-height:100%;margin-right:4px;vertical-align:middle">
-                      <span style="font-family:${FF};text-decoration:none;color:#7a7a7a;font-size:14px;line-height:16px;font-weight:500">Download receipt</span>
-                    </a>
                   </td>
                 </tr></tbody></table>
 
@@ -365,17 +347,7 @@ function buildEml(
   const messageId = `<${Date.now()}.${Math.random().toString(36).slice(2)}@demo.training>`;
   const logoSrc = logoB64 ? 'cid:logo@receipt.demo' : null;
 
-  // Build data: URIs for labelled attachments so download links work in Apple Mail / Thunderbird
-  const toDataHref = (att: Attachment) =>
-    `data:${att.mimeType};base64,${att.base64.replace(/\r\n/g, '')}`;
-  const invoiceAtt = attachments.find(a => a.label === 'invoice');
-  const receiptAtt = attachments.find(a => a.label === 'receipt');
-  const downloadHrefs = {
-    invoice: invoiceAtt ? toDataHref(invoiceAtt) : undefined,
-    receipt: receiptAtt ? toDataHref(receiptAtt) : undefined,
-  };
-
-  const html = buildReceiptHtml(f, subtotal, tax, total, 'cid:illustration@receipt.demo', logoSrc, downloadHrefs);
+  const html = buildReceiptHtml(f, subtotal, tax, total, 'cid:illustration@receipt.demo', logoSrc);
   const plain = buildPlainText(f, subtotal, tax, total);
 
   const rand = () => Math.random().toString(36).slice(2);
@@ -567,12 +539,7 @@ export default function ReceiptEmlEditor() {
         const dataUrl = ev.target?.result as string;
         const [meta, data] = dataUrl.split(',');
         const mimeType = meta.match(/:(.*?);/)?.[1] ?? 'application/octet-stream';
-        setAttachments(prev => {
-          const hasInvoice = prev.some(a => a.label === 'invoice');
-          const hasReceipt = prev.some(a => a.label === 'receipt');
-          const label: Attachment['label'] = !hasInvoice ? 'invoice' : !hasReceipt ? 'receipt' : 'other';
-          return [...prev, { name: file.name, mimeType, base64: chunkBase64(data), label }];
-        });
+        setAttachments(prev => [...prev, { name: file.name, mimeType, base64: chunkBase64(data) }]);
       };
       reader.readAsDataURL(file);
     });
@@ -645,16 +612,6 @@ export default function ReceiptEmlEditor() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }
-
-  function handlePreviewClick(e: React.MouseEvent<HTMLDivElement>) {
-    const target = (e.target as HTMLElement).closest('[data-dl]');
-    if (!target) return;
-    e.preventDefault();
-    const action = target.getAttribute('data-dl') as 'invoice' | 'receipt';
-    const match = attachments.find(a => a.label === action);
-    if (match) downloadAttachment(match);
-    else handleExport();
   }
 
   const tabBtn = (active: boolean) =>

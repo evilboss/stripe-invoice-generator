@@ -840,17 +840,6 @@ export default function ReceiptEmlEditor() {
                         ×
                       </button>
                     </div>
-                    <select
-                      value={att.label}
-                      onChange={e => setAttachments(prev => prev.map((a, j) =>
-                        j === i ? { ...a, label: e.target.value as Attachment['label'] } : a
-                      ))}
-                      className="w-full text-xs border border-gray-200 rounded-md px-2 py-1 bg-white text-gray-600 focus:outline-none focus:border-[#635bff] cursor-pointer"
-                    >
-                      <option value="invoice">↓ Invoice</option>
-                      <option value="receipt">↓ Receipt</option>
-                      <option value="other">📎 Other (embedded only)</option>
-                    </select>
                   </li>
                 ))}
               </ul>
@@ -876,9 +865,6 @@ export default function ReceiptEmlEditor() {
                 height={getStripeCardAsset(fields.cardBrand).height}
                 className="h-4 w-auto"
               />
-              <span className="text-xs font-medium text-gray-500">
-                {getStripeCardAsset(fields.cardBrand).filename}
-              </span>
             </div>
             <FormField label="Card last 4 digits" htmlFor="cardLast4">
               <div className="flex gap-1.5">
@@ -967,7 +953,6 @@ export default function ReceiptEmlEditor() {
             <div className="relative min-h-full bg-[#f3f4f6]">
               <div
                 className="min-h-full"
-                onClick={handlePreviewClick}
                 dangerouslySetInnerHTML={{ __html: previewHtml }}
               />
               <button

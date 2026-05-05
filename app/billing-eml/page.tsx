@@ -45,6 +45,11 @@ export default function BillingEmlPage() {
                   <span className="text-base">💳</span>Billing EML Editor
                 </span>
               </li>
+              <li>
+                <Link href="/subscription-eml" className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition text-gray-400 hover:text-gray-200 hover:bg-white/5">
+                  <span className="text-base">📩</span>Subscription EML Editor
+                </Link>
+              </li>
             </ul>
           </nav>
 

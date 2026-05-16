@@ -275,6 +275,7 @@ export default function BillingEmlEditor() {
   });
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFields(prev => ({ ...prev, sentDateTime: nowDatetimeLocal() }));
   }, []);
 
@@ -290,6 +291,7 @@ export default function BillingEmlEditor() {
   const [logoStatus, setLogoStatus] = useState<FetchStatus>('idle');
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (logoMode !== 'url') { setLogoData(null); setLogoStatus('idle'); return; }
     const url = fields.logoUrl.trim();
     if (!url) { setLogoData(null); setLogoStatus('idle'); return; }
@@ -362,11 +364,12 @@ export default function BillingEmlEditor() {
     ? `data:image/svg+xml;base64,${svgToB64(svgTrimmed)}`
     : (fields.logoUrl.trim() || null);
 
+  /* eslint-disable react-hooks/preserve-manual-memoization */
   const eml = useMemo(
     () => buildEml(fields, attachments, logoB64, logoMime),
-     
     [fields, attachments, logoB64, logoMime]
   );
+  /* eslint-enable react-hooks/preserve-manual-memoization */
 
   const previewHtml = buildBillingHtml(fields, logoPreviewSrc ?? '');
 

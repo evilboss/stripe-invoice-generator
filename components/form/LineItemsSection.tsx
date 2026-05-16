@@ -236,7 +236,7 @@ export default function LineItemsSection({ control, register, watch, setValue }:
             </div>
             <div>
               <p className="text-sm font-medium text-gray-500">No items yet</p>
-              <p className="text-xs text-gray-400 mt-0.5">Click "Add Item" to add your first line item</p>
+              <p className="text-xs text-gray-400 mt-0.5">{'Click "Add Item" to add your first line item'}</p>
             </div>
             <Button
               type="button"

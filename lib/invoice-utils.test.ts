@@ -225,6 +225,16 @@ describe('computeTotals', () => {
     expect(totals.subtotal).toBe(0);
     expect(totals.grandTotal).toBe(0);
   });
+
+  it('handles missing adjustments object (line 80 branch)', () => {
+    const invoice = baseInvoice([baseItem({ unitPrice: 100 })]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (invoice as any).adjustments = undefined;
+    const totals = computeTotals(invoice);
+    expect(totals.additionalDiscount).toBe(0);
+    expect(totals.shipping).toBe(0);
+    expect(totals.grandTotal).toBe(100);
+  });
 });
 
 describe('formatCurrency', () => {
@@ -245,6 +255,14 @@ describe('formatCurrency', () => {
 describe('formatPreciseCurrency', () => {
   it('preserves more precision than formatCurrency', () => {
     expect(formatPreciseCurrency(0.123456789, 'USD')).toBe('$0.123456789');
+  });
+
+  it('returns currency-formatted 0 for NaN (line 130 branch)', () => {
+    expect(formatPreciseCurrency(NaN, 'USD')).toBe('$0.00');
+  });
+
+  it('returns currency-formatted 0 for Infinity', () => {
+    expect(formatPreciseCurrency(Infinity, 'USD')).toBe('$0.00');
   });
 });
 

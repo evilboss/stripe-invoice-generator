@@ -706,8 +706,8 @@ export default function ReceiptEmlEditor() {
 
   // Populate non-deterministic values client-side only to avoid SSR/hydration mismatch
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFields(createDefaultReceiptFields());
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -740,6 +740,7 @@ export default function ReceiptEmlEditor() {
 
   useEffect(() => {
     if (isEmptyHydrationId(selectedHydrationId)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPrefillConfig(null);
       setPrefillLogo(null);
       setHydrationSource('');
@@ -830,6 +831,7 @@ export default function ReceiptEmlEditor() {
 
   useEffect(() => {
     const url = fields.illustrationUrl.trim();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!url) { setIllData(null); setIllStatus('idle'); return; }
     const dataImage = parseDataImageUrl(url);
     if (dataImage) {
@@ -854,6 +856,7 @@ export default function ReceiptEmlEditor() {
   const [logoUrlStatus, setLogoUrlStatus] = useState<IllStatus>('idle');
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (fields.logo) { setLogoUrlData(null); setLogoUrlStatus('idle'); return; }
     const url = fields.logoUrl.trim();
     if (!url) { setLogoUrlData(null); setLogoUrlStatus('idle'); return; }

@@ -34,7 +34,7 @@ export default function BusinessInfoSection({ register, control, errors, setValu
         const mime = r.headers.get('content-type')?.split(';')[0]?.trim() ?? 'image/png';
         return r.blob().then(blob => ({ blob, mime }));
       })
-      .then(({ blob, mime }) => new Promise<string>((res, rej) => {
+      .then(({ blob }) => new Promise<string>((res, rej) => {
         const reader = new FileReader();
         reader.onload = () => res(reader.result as string);
         reader.onerror = rej;

@@ -279,10 +279,11 @@ export default function InvoiceForm() {
     if (!profile) return;
 
     let cancelled = false;
-    setHydrationLoading(true);
-    setLocalPrefillApplied(false);
 
     const loadProfilePrefill = async () => {
+      setHydrationLoading(true);
+      setLocalPrefillApplied(false);
+
       const loadOne = async (url: string | undefined) => {
         if (!url) return null;
         const raw = await fetchLocalJson(url);

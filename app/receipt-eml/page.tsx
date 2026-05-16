@@ -9,8 +9,8 @@ export const metadata: Metadata = {
 
 export default function ReceiptEmlPage() {
   return (
-    <div className="min-h-screen bg-[#F1F5F9]">
-      <div className="flex min-h-screen">
+    <div className="fixed inset-0 overflow-hidden bg-[#F1F5F9]">
+      <div className="flex h-full">
         {/* Sidebar */}
         <aside className="hidden lg:flex flex-col w-64 bg-[#1C2434] text-white flex-shrink-0 fixed top-0 left-0 h-full z-30">
           <div className="px-6 py-6 border-b border-white/10">
@@ -77,9 +77,9 @@ export default function ReceiptEmlPage() {
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 lg:ml-64 flex flex-col min-h-screen">
+        <main className="flex-1 lg:ml-64 flex flex-col h-full overflow-hidden">
           {/* Top Header */}
-          <header className="sticky top-0 z-20 bg-white border-b border-gray-100 shadow-sm">
+          <header className="flex-shrink-0 z-20 bg-white border-b border-gray-100 shadow-sm">
             <div className="flex items-center justify-between px-6 py-4">
               <div>
                 <h1 className="text-lg font-bold text-gray-800">Receipt EML Editor</h1>
@@ -97,7 +97,7 @@ export default function ReceiptEmlPage() {
           </header>
 
           {/* Editor — full remaining height */}
-          <div className="flex-1 flex overflow-hidden">
+          <div className="flex-1 flex overflow-hidden min-h-0">
             <ReceiptEmlEditor />
           </div>
         </main>

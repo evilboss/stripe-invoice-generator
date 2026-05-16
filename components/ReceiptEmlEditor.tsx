@@ -707,7 +707,7 @@ export default function ReceiptEmlEditor() {
   // Populate non-deterministic values client-side only to avoid SSR/hydration mismatch
   useEffect(() => {
     setFields(createDefaultReceiptFields());
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, []);
 
   const [attachments, setAttachments] = useState<Attachment[]>([]);

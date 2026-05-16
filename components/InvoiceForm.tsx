@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { format, addDays } from 'date-fns';
 import dynamic from 'next/dynamic';
 import { InvoiceData } from '@/types/invoice';
@@ -240,7 +240,7 @@ export default function InvoiceForm() {
   const [localPrefillSource, setLocalPrefillSource] = useState('');
   const [localPrefillApplied, setLocalPrefillApplied] = useState(false);
 
-  const { register, control, watch, setValue, reset, handleSubmit, formState: { errors } } = useForm<InvoiceData>({
+  const { register, control, watch, setValue, getValues, reset, handleSubmit, formState: { errors } } = useForm<InvoiceData>({
     defaultValues,
     mode: 'onChange',
   });
@@ -408,12 +408,14 @@ export default function InvoiceForm() {
       setValue(key, defaultValues[key] as never);
     });
     setValue('invoiceNumber', generateInvoiceNumber());
-    setValue('receiptNumber', isReceiptDocument(watch('invoiceTitle')) ? generateReceiptNumber() : '');
+    setValue('receiptNumber', isReceiptDocument(getValues('invoiceTitle')) ? generateReceiptNumber() : '');
     setValue('invoiceDate', format(new Date(), 'yyyy-MM-dd'));
     setValue('dueDate', format(addDays(new Date(), 30), 'yyyy-MM-dd'));
   };
 
-  const isClean = watch('layoutStyle') === 'clean';
+  const layoutStyle = useWatch({ control, name: 'layoutStyle' });
+  const paymentCardBrand = useWatch({ control, name: 'paymentInfo.cardBrand' });
+  const isClean = layoutStyle === 'clean';
 
   return (
     <>
@@ -438,7 +440,7 @@ export default function InvoiceForm() {
           <div className="flex flex-col gap-6">
             <InvoiceDetailsSection register={register} setValue={setValue} errors={errors} />
             <BusinessInfoSection register={register} control={control as never} errors={errors} setValue={setValue} />
-            {!isClean && <PaymentInfoSection register={register} cardBrand={watch('paymentInfo.cardBrand')} />}
+            {!isClean && <PaymentInfoSection register={register} cardBrand={paymentCardBrand} />}
           </div>
           <div className="flex flex-col gap-6">
             <CustomerInfoSection register={register} control={control as never} errors={errors} />

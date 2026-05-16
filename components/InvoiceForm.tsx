@@ -261,14 +261,19 @@ export default function InvoiceForm() {
     return () => { cancelled = true; };
   }, []);
 
-  useEffect(() => {
+  const [lastResolvedHydrationId, setLastResolvedHydrationId] = useState(selectedHydrationId);
+  if (selectedHydrationId !== lastResolvedHydrationId) {
+    setLastResolvedHydrationId(selectedHydrationId);
     if (isEmptyHydrationId(selectedHydrationId)) {
       setLocalPrefill(null);
       setLocalPrefillSource('');
       setLocalPrefillApplied(false);
       setHydrationLoading(false);
-      return;
     }
+  }
+
+  useEffect(() => {
+    if (isEmptyHydrationId(selectedHydrationId)) return;
 
     const profile = hydrationProfiles.find(p => p.id === selectedHydrationId);
     if (!profile) return;

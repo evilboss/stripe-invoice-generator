@@ -4,9 +4,25 @@ import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
+import LocalHydrationPanel from '@/components/LocalHydrationPanel';
 import FormField from '@/components/ui/FormField';
 import Card from '@/components/ui/Card';
 import Textarea from '@/components/ui/Textarea';
+import Select from '@/components/ui/Select';
+import {
+  type HydrationProfile,
+  type LocalEmlAttachment,
+  DEFAULT_SUBSCRIPTION_HYDRATION_PROFILE,
+  describeHydrationSources,
+  fetchLocalAttachments,
+  fetchLocalJson,
+  EMPTY_HYDRATION_ID,
+  isEmptyHydrationId,
+  loadHydrationManifest,
+  mergeAttachmentPaths,
+  normalizeAttachmentPaths,
+  resolveLocalUrl,
+} from '@/lib/local-hydration';
 
 // ─── types ───────────────────────────────────────────────────────────────────
 
@@ -33,6 +49,9 @@ interface Fields {
   orderDate: string;
   planName: string;
   planAmount: string;
+  vatRate: string;
+  taxLabel: string;
+  taxCountry: string;
   taxAmount: string;
   vatNumber: string;
   vatAmount: string;
@@ -45,10 +64,32 @@ interface Fields {
   footerReason: string;
 }
 
-interface Attachment {
-  name: string;
-  mimeType: string;
-  base64: string;
+type Attachment = LocalEmlAttachment;
+
+type SubscriptionEmlPrefill = Partial<Fields>;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function parseSubscriptionHydration(raw: unknown): {
+  fields: SubscriptionEmlPrefill;
+  attachmentPaths: string[];
+} | null {
+  if (!isRecord(raw)) return null;
+
+  const configSource = isRecord(raw.subscriptionEml) ? raw.subscriptionEml : raw;
+  if (!isRecord(configSource)) return null;
+
+  const attachmentPaths = mergeAttachmentPaths(
+    normalizeAttachmentPaths(raw.attachments),
+    normalizeAttachmentPaths(configSource.attachments),
+  );
+
+  const fields = { ...configSource };
+  delete fields.attachments;
+
+  return { fields: fields as SubscriptionEmlPrefill, attachmentPaths };
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -78,6 +119,79 @@ function generateOrderNumber(): string {
   return `sub_${rand(14)}`;
 }
 
+const VAT_PRESETS: Array<{ label: string; taxLabel: string; country: string; rate: number }> = [
+  { label: 'UK VAT 20%', taxLabel: 'VAT', country: 'United Kingdom', rate: 20 },
+  { label: 'EU VAT 19% (DE)', taxLabel: 'VAT', country: 'Germany', rate: 19 },
+  { label: 'EU VAT 20% (FR)', taxLabel: 'VAT', country: 'France', rate: 20 },
+  { label: 'EU VAT 21% (NL)', taxLabel: 'VAT', country: 'Netherlands', rate: 21 },
+  { label: 'AU GST 10%', taxLabel: 'GST', country: 'Australia', rate: 10 },
+  { label: 'NZ GST 15%', taxLabel: 'GST', country: 'New Zealand', rate: 15 },
+  { label: 'SG GST 9%', taxLabel: 'GST', country: 'Singapore', rate: 9 },
+  { label: 'CA HST 13% (ON)', taxLabel: 'HST', country: 'Canada', rate: 13 },
+  { label: 'PH VAT 12%', taxLabel: 'VAT', country: 'Philippines', rate: 12 },
+  { label: 'No tax', taxLabel: 'Tax', country: '', rate: 0 },
+];
+
+const TAX_RATE_OPTIONS = [0, 5, 8, 10, 13, 15, 20].map(rate => ({
+  value: String(rate),
+  label: `${rate}%`,
+}));
+
+const taxLabelOptions = [
+  { value: 'Tax', label: 'Tax (generic)' },
+  { value: 'VAT', label: 'VAT — Value Added Tax' },
+  { value: 'GST', label: 'GST — Goods & Services Tax' },
+  { value: 'HST', label: 'HST — Harmonized Sales Tax' },
+  { value: 'PST', label: 'PST — Provincial Sales Tax' },
+  { value: 'Sales Tax', label: 'Sales Tax' },
+  { value: 'Service Tax', label: 'Service Tax' },
+];
+
+function parseMoney(value: string): number {
+  const n = parseFloat(value.replace(/[^0-9.-]/g, ''));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function currencySymbol(planAmount: string): string {
+  if (planAmount.includes('£')) return '£';
+  if (planAmount.includes('€')) return '€';
+  return '$';
+}
+
+function formatMoney(amount: number, symbol: string): string {
+  return `${symbol}${amount.toFixed(2)}`;
+}
+
+function recalcPricing(fields: Pick<Fields, 'planAmount' | 'vatRate'>): Pick<Fields, 'taxAmount' | 'vatAmount' | 'totalAmount'> {
+  const subtotal = parseMoney(fields.planAmount);
+  const rate = parseFloat(fields.vatRate) || 0;
+  const symbol = currencySymbol(fields.planAmount);
+  const tax = subtotal * rate / 100;
+
+  if (rate === 0) {
+    return {
+      taxAmount: '',
+      vatAmount: '',
+      totalAmount: formatMoney(subtotal, symbol),
+    };
+  }
+
+  return {
+    taxAmount: '',
+    vatAmount: formatMoney(tax, symbol),
+    totalAmount: formatMoney(subtotal + tax, symbol),
+  };
+}
+
+function getTaxLineLabel(f: Fields): string {
+  const base = f.taxCountry.trim()
+    ? `${f.taxLabel || 'Tax'} - ${f.taxCountry.trim()}`
+    : (f.taxLabel || 'Tax');
+  const rate = parseFloat(f.vatRate) || 0;
+  if (rate > 0) return `${base} (${rate}%)`;
+  return base;
+}
+
 function formatOrderDate(datetimeLocal: string): string {
   if (!datetimeLocal) return '';
   try {
@@ -94,6 +208,14 @@ function formatOrderDate(datetimeLocal: string): string {
 
 function buildSubscriptionHtml(f: Fields, logoSrc: string): string {
   const FF = `Colfax,Helvetica,Arial,sans-serif`;
+  const labelColWidth = '42%';
+  const amountColWidth = '58%';
+  const labelCell = `width="${labelColWidth}" style="word-break:break-word;font-family:${FF};font-size:14px;padding:10px 0;line-height:18px;color:#333"`;
+  const amountCell = `width="${amountColWidth}" style="font-family:${FF};font-size:14px;text-align:end;white-space:nowrap;word-break:keep-all;line-height:18px;padding:10px 0;color:#333"`;
+  const amountHeader = `width="${amountColWidth}" style="font-family:${FF};font-size:16px;padding-bottom:8px;border-bottom:1px solid #eaeaec;text-align:end;white-space:nowrap"`;
+  const labelHeader = `width="${labelColWidth}" style="font-family:${FF};font-size:16px;padding-bottom:8px;border-bottom:1px solid #eaeaec;text-align:start"`;
+  const labelCellBorder = `width="${labelColWidth}" style="word-break:break-word;font-family:${FF};font-size:14px;padding:10px 0;line-height:18px;color:#333;border-bottom:1px solid #eaeaec"`;
+  const amountCellBorder = `width="${amountColWidth}" style="font-family:${FF};font-size:14px;text-align:end;white-space:nowrap;word-break:keep-all;line-height:18px;padding:10px 0;color:#333;border-bottom:1px solid #eaeaec"`;
 
   const vatNumberRow = f.vatNumber.trim()
     ? `<tr>
@@ -105,14 +227,18 @@ function buildSubscriptionHtml(f: Fields, logoSrc: string): string {
       </tr>`
     : '';
 
-  const vatAmountRow = f.vatAmount.trim()
+  const vatRate = parseFloat(f.vatRate) || 0;
+  const taxOrVatRow = vatRate > 0 && f.vatAmount.trim()
     ? `<tr>
-        <td width="80%" style="word-break:break-word;font-family:${FF};font-size:14px;padding:10px 0;color:#333;line-height:18px">&nbsp;</td>
-        <td width="20%" style="word-break:break-word;font-family:${FF};font-size:14px;text-align:end">
-          <span style="color:#333">VAT: ${f.vatAmount}</span>
-        </td>
+        <td ${labelCell}>&nbsp;</td>
+        <td ${amountCell}><span style="color:#333">${getTaxLineLabel(f)}: ${f.vatAmount}</span></td>
       </tr>`
-    : '';
+    : (f.taxAmount.trim() && parseMoney(f.taxAmount) > 0
+      ? `<tr>
+        <td ${labelCell}>&nbsp;</td>
+        <td ${amountCell}><span style="color:#333">Tax: ${f.taxAmount}</span></td>
+      </tr>`
+      : '');
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -208,21 +334,21 @@ function buildSubscriptionHtml(f: Fields, logoSrc: string): string {
                           <!-- Header + plan row -->
                           <tr>
                             <td colspan="2" style="word-break:break-word;font-family:${FF};font-size:16px">
-                              <table width="100%" cellpadding="0" cellspacing="0" style="width:100%;margin:0;padding:0;border-bottom:1px solid #eaeaec">
+                              <table width="100%" cellpadding="0" cellspacing="0" style="width:100%;margin:0;padding:0;border-bottom:1px solid #eaeaec;table-layout:fixed">
                                 <tbody>
                                   <tr>
-                                    <th style="font-family:${FF};font-size:16px;padding-bottom:8px;border-bottom:1px solid #eaeaec;text-align:start">
+                                    <th ${labelHeader}>
                                       <p style="margin:0;font-size:14px;line-height:1.625;color:#333">Plan</p>
                                     </th>
-                                    <th style="font-family:${FF};font-size:16px;padding-bottom:8px;border-bottom:1px solid #eaeaec;text-align:end">
+                                    <th ${amountHeader}>
                                       <p style="margin:0;font-size:14px;line-height:1.625;color:#333">Amount</p>
                                     </th>
                                   </tr>
                                   <tr>
-                                    <td width="80%" style="word-break:break-word;font-family:${FF};font-size:14px;padding:10px 0;line-height:18px">
+                                    <td ${labelCell}>
                                       <span style="color:#333">${f.planName}</span>
                                     </td>
-                                    <td width="20%" style="word-break:break-word;font-family:${FF};font-size:14px;text-align:end">
+                                    <td ${amountCell}>
                                       <span style="color:#333">${f.planAmount}</span>
                                     </td>
                                   </tr>
@@ -234,18 +360,12 @@ function buildSubscriptionHtml(f: Fields, logoSrc: string): string {
                           <!-- Tax / VAT / Total -->
                           <tr>
                             <td colspan="2" style="word-break:break-word;font-family:${FF};font-size:16px">
-                              <table width="100%" cellpadding="0" cellspacing="0" style="width:100%;margin:0;padding:10px 0">
+                              <table width="100%" cellpadding="0" cellspacing="0" style="width:100%;margin:0;padding:10px 0;table-layout:fixed">
                                 <tbody>
+                                  ${taxOrVatRow}
                                   <tr>
-                                    <td width="80%" style="word-break:break-word;font-family:${FF};font-size:14px;padding:10px 0;color:#333;line-height:18px">&nbsp;</td>
-                                    <td width="20%" style="word-break:break-word;font-family:${FF};font-size:14px;text-align:end">
-                                      <span style="color:#333">Tax: ${f.taxAmount}</span>
-                                    </td>
-                                  </tr>
-                                  ${vatAmountRow}
-                                  <tr>
-                                    <td width="80%" style="word-break:break-word;font-family:${FF};font-size:14px;padding:10px 0;color:#333;line-height:18px">&nbsp;</td>
-                                    <td width="20%" style="word-break:break-word;font-family:${FF};font-size:14px;text-align:end">
+                                    <td ${labelCell}>&nbsp;</td>
+                                    <td ${amountCell}>
                                       <span style="color:#333">Total: ${f.totalAmount}</span>
                                     </td>
                                   </tr>
@@ -257,13 +377,13 @@ function buildSubscriptionHtml(f: Fields, logoSrc: string): string {
                           <!-- Payment method -->
                           <tr>
                             <td colspan="2" style="word-break:break-word;font-family:${FF};font-size:16px">
-                              <table width="100%" cellpadding="0" cellspacing="0" style="width:100%;margin:0;padding:0;border-top:1px solid #eaeaec">
+                              <table width="100%" cellpadding="0" cellspacing="0" style="width:100%;margin:0;padding:0;border-top:1px solid #eaeaec;table-layout:fixed">
                                 <tbody>
                                   <tr>
-                                    <td width="80%" style="word-break:break-word;font-family:${FF};font-size:14px;padding:10px 0;color:#333;line-height:18px;border-bottom:1px solid #eaeaec">
+                                    <td ${labelCellBorder}>
                                       <span style="color:#333">Payment method</span>
                                     </td>
-                                    <td width="20%" style="word-break:break-word;font-family:${FF};font-size:14px;text-align:end;padding:10px 0;color:#333;line-height:18px;border-bottom:1px solid #eaeaec">
+                                    <td ${amountCellBorder}>
                                       <span style="color:#333">${f.paymentMethod}</span>
                                     </td>
                                   </tr>
@@ -319,7 +439,10 @@ function buildSubscriptionHtml(f: Fields, logoSrc: string): string {
 
 function buildPlainText(f: Fields): string {
   const vatNumberLine = f.vatNumber.trim() ? `VAT number: ${f.vatNumber}\n` : '';
-  const vatAmountLine = f.vatAmount.trim() ? `VAT: ${f.vatAmount}\n` : '';
+  const vatRate = parseFloat(f.vatRate) || 0;
+  const vatAmountLine = vatRate > 0 && f.vatAmount.trim()
+    ? `${getTaxLineLabel(f)}: ${f.vatAmount}\n`
+    : (f.taxAmount.trim() && parseMoney(f.taxAmount) > 0 ? `Tax: ${f.taxAmount}\n` : '');
   return `${f.subscriptionMessage}
 
 ${f.renewalMessage}
@@ -337,7 +460,6 @@ ${vatNumberLine}
 Plan: ${f.planName}
 Amount: ${f.planAmount}
 
-Tax: ${f.taxAmount}
 ${vatAmountLine}Total: ${f.totalAmount}
 
 Payment method: ${f.paymentMethod}
@@ -437,58 +559,93 @@ ${attachmentParts}
 --${mixedBoundary}--`;
 }
 
+const SUBSCRIPTION_STATIC_DEFAULTS: Fields = {
+  companyName: 'OpenAI',
+  fromEmail: 'no-reply@openai.com',
+  toEmail: 'user@example.com',
+  subject: 'Your ChatGPT Plus subscription confirmation',
+  sentDateTime: '',
+  mailedBy: '',
+  signedBy: '',
+  logoUrl: 'https://cdn.openai.com/API/logo-assets/openai-logo-email-header-1.png',
+  preheaderText: 'You\'ve successfully subscribed.',
+  subscriptionMessage: 'You\'ve successfully subscribed to ChatGPT Plus.',
+  renewalMessage: 'Your subscription will automatically renew monthly. You can cancel at any time.',
+  manageUrl: 'https://chatgpt.com/account/manage',
+  manageButtonText: 'Manage your subscription',
+  buttonColor: '#10a37f',
+  helpCenterUrl: 'https://help.openai.com/en/',
+  helpCenterText: 'help center',
+  linkColor: '#10a37f',
+  teamName: 'The OpenAI Team',
+  orderNumber: '',
+  orderDate: '',
+  planName: 'ChatGPT Plus Subscription',
+  planAmount: '$20.00',
+  vatRate: '0',
+  taxLabel: 'Tax',
+  taxCountry: '',
+  taxAmount: '',
+  vatNumber: '',
+  vatAmount: '',
+  totalAmount: '$20.00',
+  paymentMethod: 'Visa-4242',
+  cancelUrl: 'https://chatgpt.com/account/cancel',
+  cancelLinkText: 'Learn how to cancel',
+  authorizationText: 'By subscribing, you authorize us to charge you the subscription cost (as described above) automatically, charged to the payment method provided until canceled.',
+  footerAddress: 'OpenAI · 1455 3rd Street · San Francisco, California · 94158 USA',
+  footerReason: 'You received this email because you have an account with OpenAI.',
+};
+
+function createDefaultSubscriptionFields(): Fields {
+  const sentDateTime = nowDatetimeLocal();
+  return {
+    ...SUBSCRIPTION_STATIC_DEFAULTS,
+    sentDateTime,
+    orderNumber: generateOrderNumber(),
+    orderDate: formatOrderDate(sentDateTime),
+  };
+}
+
 // ─── component ────────────────────────────────────────────────────────────────
 
 export default function SubscriptionEmlEditor() {
-  const [fields, setFields] = useState<Fields>({
-    companyName: 'OpenAI',
-    fromEmail: 'no-reply@openai.com',
-    toEmail: 'user@example.com',
-    subject: 'Your ChatGPT Plus subscription confirmation',
-    sentDateTime: '',
-    mailedBy: '',
-    signedBy: '',
-    logoUrl: 'https://cdn.openai.com/API/logo-assets/openai-logo-email-header-1.png',
-    preheaderText: 'You\'ve successfully subscribed.',
-    subscriptionMessage: 'You\'ve successfully subscribed to ChatGPT Plus.',
-    renewalMessage: 'Your subscription will automatically renew monthly. You can cancel at any time.',
-    manageUrl: 'https://chatgpt.com/account/manage',
-    manageButtonText: 'Manage your subscription',
-    buttonColor: '#10a37f',
-    helpCenterUrl: 'https://help.openai.com/en/',
-    helpCenterText: 'help center',
-    linkColor: '#10a37f',
-    teamName: 'The OpenAI Team',
-    orderNumber: '',
-    orderDate: '',
-    planName: 'ChatGPT Plus Subscription',
-    planAmount: '$20.00',
-    taxAmount: '$0.00',
-    vatNumber: '',
-    vatAmount: '',
-    totalAmount: '$20.00',
-    paymentMethod: 'Visa-4242',
-    cancelUrl: 'https://chatgpt.com/account/cancel',
-    cancelLinkText: 'Learn how to cancel',
-    authorizationText: 'By subscribing, you authorize us to charge you the subscription cost (as described above) automatically, charged to the payment method provided until canceled.',
-    footerAddress: 'OpenAI · 3180 18th St Ste 100 · San Francisco, CA 94110-2042 · USA',
-    footerReason: 'You received this email because you have an account with OpenAI.',
-  });
+  const [fields, setFields] = useState<Fields>(SUBSCRIPTION_STATIC_DEFAULTS);
 
   useEffect(() => {
-    const now = new Date();
-    setFields(prev => ({
-      ...prev,
-      sentDateTime: nowDatetimeLocal(),
-      orderNumber: generateOrderNumber(),
-      orderDate: formatOrderDate(nowDatetimeLocal()),
-    }));
+    setFields(createDefaultSubscriptionFields());
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    setFields(prev => {
+      const pricing = recalcPricing(prev);
+      if (
+        prev.taxAmount === pricing.taxAmount &&
+        prev.vatAmount === pricing.vatAmount &&
+        prev.totalAmount === pricing.totalAmount
+      ) {
+        return prev;
+      }
+      return { ...prev, ...pricing };
+    });
+  }, [fields.planAmount, fields.vatRate]);
 
   const setField = (key: keyof Fields) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       setFields(prev => ({ ...prev, [key]: e.target.value }));
+
+  function applyVatPreset(preset: typeof VAT_PRESETS[number]) {
+    setFields(prev => {
+      const next = {
+        ...prev,
+        taxLabel: preset.taxLabel,
+        taxCountry: preset.country,
+        vatRate: String(preset.rate),
+      };
+      return { ...next, ...recalcPricing(next) };
+    });
+  }
 
   // ── logo fetch ──────────────────────────────────────────────────────────────
   type FetchStatus = 'idle' | 'loading' | 'ok' | 'error';
@@ -515,6 +672,94 @@ export default function SubscriptionEmlEditor() {
       .catch(() => { if (!cancelled) { setLogoData(null); setLogoStatus('error'); } });
     return () => { cancelled = true; };
   }, [fields.logoUrl]);
+
+  // ── hydration ───────────────────────────────────────────────────────────────
+  const [hydrationProfiles, setHydrationProfiles] = useState<HydrationProfile[]>([]);
+  const [selectedHydrationId, setSelectedHydrationId] = useState(EMPTY_HYDRATION_ID);
+  const [hydrationLoading, setHydrationLoading] = useState(false);
+  const [hydrationSource, setHydrationSource] = useState('');
+  const [hydrationPrefill, setHydrationPrefill] = useState<SubscriptionEmlPrefill | null>(null);
+  const [hydrationAttachments, setHydrationAttachments] = useState<Attachment[]>([]);
+  const [hydrationApplied, setHydrationApplied] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    loadHydrationManifest(DEFAULT_SUBSCRIPTION_HYDRATION_PROFILE).then(profiles => {
+      if (cancelled) return;
+      setHydrationProfiles(profiles);
+      setSelectedHydrationId(prev =>
+        prev && (profiles.some(p => p.id === prev) || isEmptyHydrationId(prev))
+          ? prev
+          : EMPTY_HYDRATION_ID
+      );
+    });
+
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (isEmptyHydrationId(selectedHydrationId)) {
+      setHydrationPrefill(null);
+      setHydrationAttachments([]);
+      setHydrationSource('');
+      setHydrationApplied(false);
+      setHydrationLoading(false);
+      return;
+    }
+
+    const profile = hydrationProfiles.find(p => p.id === selectedHydrationId);
+    if (!profile) return;
+
+    let cancelled = false;
+    setHydrationLoading(true);
+    setHydrationApplied(false);
+
+    const loadProfileHydration = async () => {
+      const subscriptionUrl = resolveLocalUrl(profile.subscriptionPrefill);
+      const subscriptionRaw = subscriptionUrl ? await fetchLocalJson(subscriptionUrl) : null;
+      const parsed = subscriptionRaw ? parseSubscriptionHydration(subscriptionRaw) : null;
+      const attachmentPaths = mergeAttachmentPaths(profile.attachments, parsed?.attachmentPaths);
+      const loadedAttachments = await fetchLocalAttachments(attachmentPaths);
+
+      if (cancelled) return;
+
+      setHydrationPrefill(parsed?.fields ?? null);
+      setHydrationAttachments(loadedAttachments);
+      setHydrationSource(
+        parsed?.fields || loadedAttachments.length > 0
+          ? describeHydrationSources(profile, {
+              subscription: Boolean(parsed?.fields),
+              attachmentCount: loadedAttachments.length,
+            })
+          : ''
+      );
+    };
+
+    loadProfileHydration().finally(() => {
+      if (!cancelled) setHydrationLoading(false);
+    });
+
+    return () => { cancelled = true; };
+  }, [selectedHydrationId, hydrationProfiles]);
+
+  function applyHydration() {
+    if (!hydrationPrefill && hydrationAttachments.length === 0) return;
+
+    if (hydrationPrefill) {
+      setFields(prev => ({ ...prev, ...hydrationPrefill }));
+    }
+    if (hydrationAttachments.length > 0) {
+      setAttachments(hydrationAttachments);
+    }
+    setHydrationApplied(true);
+  }
+
+  function resetFromHydration() {
+    setFields(createDefaultSubscriptionFields());
+    setAttachments([]);
+    setHydrationApplied(false);
+  }
 
   // ── attachments ─────────────────────────────────────────────────────────────
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -583,10 +828,25 @@ export default function SubscriptionEmlEditor() {
 
   // ── render ──────────────────────────────────────────────────────────────────
   return (
-    <div className="flex h-full min-h-0">
+    <div className="flex h-full min-h-0 w-full overflow-hidden">
 
-      {/* ── Left: form ── */}
-      <aside className="w-72 flex-shrink-0 border-r border-gray-100 bg-white overflow-y-auto p-5 space-y-5">
+      {/* ── Left: form (scrollable) ── */}
+      <aside className="w-[380px] flex-shrink-0 min-h-0 border-r border-gray-100 bg-white overflow-y-auto overscroll-contain p-5 space-y-5">
+
+        {(hydrationProfiles.length > 0 || hydrationLoading) && (
+          <LocalHydrationPanel
+            profiles={hydrationProfiles}
+            selectedId={selectedHydrationId}
+            onSelectedIdChange={setSelectedHydrationId}
+            sourceDescription={hydrationSource}
+            hasData={Boolean(hydrationPrefill) || hydrationAttachments.length > 0}
+            loading={hydrationLoading}
+            applied={hydrationApplied}
+            onApply={applyHydration}
+            onReset={resetFromHydration}
+            title="Local subscription hydration"
+          />
+        )}
 
         <Card title="Sender / Recipient">
           <div className="space-y-3">
@@ -619,6 +879,67 @@ export default function SubscriptionEmlEditor() {
             <FormField label="Signed-by domain" htmlFor="signedBy" hint="Optional — adds DKIM-Signature header">
               <Input id="signedBy" value={fields.signedBy} onChange={setField('signedBy')} placeholder="openai.com" />
             </FormField>
+          </div>
+        </Card>
+
+        <Card title="Attachments" subtitle="Embedded as MIME parts in the exported .eml">
+          <div className="space-y-3">
+            <div
+              {...getRootProps()}
+              className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-4 cursor-pointer transition select-none
+                ${isDragActive ? 'border-[#635bff] bg-[#635bff]/5' : 'border-gray-200 hover:border-[#635bff]/50 hover:bg-gray-50'}`}
+            >
+              <input {...getInputProps()} />
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={isDragActive ? '#635bff' : '#9ca3af'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              <p className={`text-xs font-medium ${isDragActive ? 'text-[#635bff]' : 'text-gray-500'}`}>
+                {isDragActive ? 'Drop files here' : 'Drag & drop or click to browse'}
+              </p>
+              <p className="text-[11px] leading-4 text-gray-400 text-center">
+                PDFs and other files are attached to the exported .eml. Hydration profiles can preload attachments too.
+              </p>
+            </div>
+            {attachments.length > 0 && (
+              <ul className="space-y-2">
+                {attachments.map((att, i) => (
+                  <li key={i} className="space-y-1.5 pb-2.5 border-b border-gray-100 last:border-0 last:pb-0">
+                    <div className="flex items-center gap-1.5">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                      </svg>
+                      <span className="truncate text-gray-700 flex-1 min-w-0 text-xs" title={att.name}>
+                        {att.name}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => downloadAttachment(att)}
+                        className="flex-shrink-0 text-gray-400 hover:text-[#635bff] transition"
+                        aria-label="Download"
+                        title="Download"
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                          <polyline points="7 10 12 15 17 10"/>
+                          <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(i)}
+                        className="flex-shrink-0 text-gray-400 hover:text-red-500 transition text-base leading-none"
+                        aria-label="Remove"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </Card>
 
@@ -714,14 +1035,13 @@ export default function SubscriptionEmlEditor() {
             <FormField label="Plan amount" htmlFor="planAmount">
               <Input id="planAmount" value={fields.planAmount} onChange={setField('planAmount')} placeholder="$20.00" />
             </FormField>
-            <FormField label="Tax" htmlFor="taxAmount">
-              <Input id="taxAmount" value={fields.taxAmount} onChange={setField('taxAmount')} placeholder="$0.00" />
-            </FormField>
-            <FormField label="VAT amount" htmlFor="vatAmount" hint="Optional — leave blank to hide">
-              <Input id="vatAmount" value={fields.vatAmount} onChange={setField('vatAmount')} placeholder="$0.00" />
-            </FormField>
-            <FormField label="Total" htmlFor="totalAmount">
-              <Input id="totalAmount" value={fields.totalAmount} onChange={setField('totalAmount')} placeholder="$20.00" />
+            {(parseFloat(fields.vatRate) || 0) > 0 && fields.vatAmount && (
+              <p className="text-xs text-gray-500">
+                {getTaxLineLabel(fields)}: <span className="font-medium text-gray-700">{fields.vatAmount}</span>
+              </p>
+            )}
+            <FormField label="Total" htmlFor="totalAmount" hint="Auto-calculated from plan amount and VAT rate">
+              <Input id="totalAmount" value={fields.totalAmount} readOnly className="bg-gray-50" />
             </FormField>
             <FormField label="Payment method" htmlFor="paymentMethod">
               <Input id="paymentMethod" value={fields.paymentMethod} onChange={setField('paymentMethod')} placeholder="Visa-4242" />
@@ -729,10 +1049,62 @@ export default function SubscriptionEmlEditor() {
           </div>
         </Card>
 
-        <Card title="VAT" subtitle="Optional — leave blank to omit">
-          <FormField label="VAT registration number" htmlFor="vatNumber" hint="Shown in order details when provided">
-            <Input id="vatNumber" value={fields.vatNumber} onChange={setField('vatNumber')} placeholder="GB123456789" />
-          </FormField>
+        <Card title="VAT / Tax" subtitle="Rate applies to the plan amount">
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-2">Tax jurisdiction presets</p>
+              <div className="flex flex-wrap gap-1.5">
+                {VAT_PRESETS.map(preset => (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    onClick={() => applyVatPreset(preset)}
+                    className="px-2.5 py-1 text-xs rounded-md border border-gray-200 text-gray-600 hover:border-[#635bff]/50 hover:text-[#635bff] transition"
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <FormField label="VAT / tax rate" htmlFor="vatRate" hint="Percentage applied to the plan amount">
+              <Select
+                id="vatRate"
+                value={fields.vatRate}
+                onChange={e => setFields(prev => ({ ...prev, vatRate: e.target.value }))}
+                options={TAX_RATE_OPTIONS}
+              />
+              <div className="flex gap-1 flex-wrap mt-1.5">
+                {TAX_RATE_OPTIONS.map(option => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setFields(prev => ({ ...prev, vatRate: option.value }))}
+                    className={`px-2 py-0.5 text-xs rounded border transition ${
+                      fields.vatRate === option.value
+                        ? 'border-[#635bff] text-[#635bff] bg-[#635bff]/5'
+                        : 'border-gray-200 text-gray-500 hover:border-[#635bff]/50 hover:text-[#635bff]'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </FormField>
+            <FormField label="Tax type" htmlFor="taxLabel" hint="Label shown on the email receipt">
+              <Select
+                id="taxLabel"
+                value={fields.taxLabel}
+                onChange={e => setFields(prev => ({ ...prev, taxLabel: e.target.value }))}
+                options={taxLabelOptions}
+              />
+            </FormField>
+            <FormField label="Tax country" htmlFor="taxCountry" hint='Optional — e.g. "VAT - United Kingdom"'>
+              <Input id="taxCountry" value={fields.taxCountry} onChange={setField('taxCountry')} placeholder="United Kingdom" />
+            </FormField>
+            <FormField label="VAT registration number" htmlFor="vatNumber" hint="Shown in order details when provided">
+              <Input id="vatNumber" value={fields.vatNumber} onChange={setField('vatNumber')} placeholder="GB123456789" />
+            </FormField>
+          </div>
         </Card>
 
         <Card title="Cancel / authorization">
@@ -760,52 +1132,11 @@ export default function SubscriptionEmlEditor() {
           </div>
         </Card>
 
-        <Card title="Attachments">
-          <div className="space-y-3">
-            <div
-              {...getRootProps()}
-              className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-4 cursor-pointer transition select-none
-                ${isDragActive ? 'border-[#635bff] bg-[#635bff]/5' : 'border-gray-200 hover:border-[#635bff]/50 hover:bg-gray-50'}`}
-            >
-              <input {...getInputProps()} />
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={isDragActive ? '#635bff' : '#9ca3af'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="17 8 12 3 7 8"/>
-                <line x1="12" y1="3" x2="12" y2="15"/>
-              </svg>
-              <p className={`text-xs font-medium ${isDragActive ? 'text-[#635bff]' : 'text-gray-500'}`}>
-                {isDragActive ? 'Drop files here' : 'Drag & drop or click to browse'}
-              </p>
-            </div>
-            {attachments.length > 0 && (
-              <ul className="space-y-1.5">
-                {attachments.map((att, i) => (
-                  <li key={i} className="flex items-center gap-2 text-xs text-gray-700">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                      <polyline points="14 2 14 8 20 8"/>
-                    </svg>
-                    <span className="flex-1 truncate min-w-0" title={att.name}>{att.name}</span>
-                    <button onClick={() => downloadAttachment(att)} className="flex-shrink-0 text-gray-400 hover:text-[#635bff] transition" title="Download">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                        <polyline points="7 10 12 15 17 10"/>
-                        <line x1="12" y1="15" x2="12" y2="3"/>
-                      </svg>
-                    </button>
-                    <button onClick={() => removeAttachment(i)} className="flex-shrink-0 text-gray-400 hover:text-red-500 transition text-sm leading-none">×</button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </Card>
-
       </aside>
 
-      {/* ── Right: preview / source ── */}
-      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        <div className="flex items-center gap-2 px-6 py-3 border-b border-gray-100 bg-white flex-shrink-0">
+      {/* ── Right: preview / source (always visible) ── */}
+      <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden bg-[#f3f4f6]">
+        <div className="flex items-center gap-2 px-6 py-3 border-b border-gray-100 bg-white flex-shrink-0 z-10">
           <button className={tabBtn(tab === 'preview')} onClick={() => setTab('preview')}>Preview</button>
           <button className={tabBtn(tab === 'source')} onClick={() => setTab('source')}>EML Source</button>
           {attachments.length > 0 && (
@@ -830,13 +1161,14 @@ export default function SubscriptionEmlEditor() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-auto relative">
+        <div className="flex-1 min-h-0 overflow-auto relative">
           {tab === 'preview' ? (
-            <div className="relative min-h-full bg-[#f3f4f6]">
+            <div className="relative min-h-full pb-20">
               <div className="min-h-full" dangerouslySetInnerHTML={{ __html: previewHtml }} />
               <button
                 onClick={handleExport}
-                className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-2.5 bg-[#3C50E0] hover:bg-[#3347C8] active:scale-95 text-white text-sm font-medium rounded-xl shadow-lg transition-all"
+                type="button"
+                className="absolute bottom-6 right-6 z-10 flex items-center gap-2 px-4 py-2.5 bg-[#3C50E0] hover:bg-[#3347C8] active:scale-95 text-white text-sm font-medium rounded-xl shadow-lg transition-all"
               >
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>

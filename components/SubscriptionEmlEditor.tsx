@@ -614,7 +614,7 @@ export default function SubscriptionEmlEditor() {
 
   useEffect(() => {
     setFields(createDefaultSubscriptionFields());
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, []);
 
   useEffect(() => {
@@ -803,7 +803,7 @@ export default function SubscriptionEmlEditor() {
 
   const eml = useMemo(
     () => buildEml(fields, attachments, logoB64, logoMime),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     [fields, attachments, logoB64, logoMime]
   );
 

@@ -104,4 +104,9 @@ describe('LocalHydrationPanel', () => {
     expect(screen.getByText('Custom title')).toBeInTheDocument();
     expect(screen.getByText('No prefill')).toBeInTheDocument();
   });
+
+  it('shows fallback text when sourceDescription is empty (line 63 branch)', () => {
+    render(<LocalHydrationPanel {...baseProps({ sourceDescription: '' })} />);
+    expect(screen.getByText('No hydration files found for this profile')).toBeInTheDocument();
+  });
 });

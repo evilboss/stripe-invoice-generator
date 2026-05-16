@@ -1,4 +1,4 @@
-import { ComputedTotals, InvoiceData, LineItem, PaymentHistoryEntry } from '@/types/invoice';
+import { ComputedTotals, InvoiceData, InvoiceTitle, LineItem, PaymentHistoryEntry } from '@/types/invoice';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
 
@@ -12,6 +12,11 @@ export function generateInvoiceNumber(): string {
 export function generateReceiptNumber(): string {
   const block = () => String(Math.floor(Math.random() * 9000) + 1000);
   return `${block()}-${block()}-${block()}`;
+}
+
+/** Document-level receipt number applies only to Receipt PDFs, not invoices/quotes/etc. */
+export function isReceiptDocument(title: InvoiceTitle | string): boolean {
+  return title === 'Receipt';
 }
 
 /** Coerce any form value to a finite number (treats NaN/undefined/"" as 0). */
@@ -117,6 +122,17 @@ export function formatCurrency(amount: number, currency: string): string {
     style: 'currency',
     currency,
     minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(safe);
+}
+
+export function formatPreciseCurrency(amount: number, currency: string): string {
+  const safe = Number.isFinite(amount) ? amount : 0;
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 9,
   }).format(safe);
 }
 
@@ -172,6 +188,8 @@ export function newPaymentHistoryEntry(): PaymentHistoryEntry {
   return {
     id: uuidv4(),
     paymentMethod: '',
+    cardBrand: 'visa',
+    cardLast4: '',
     date: format(new Date(), 'yyyy-MM-dd'),
     amountPaid: 0,
     receiptNumber: '',

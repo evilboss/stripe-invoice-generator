@@ -33,6 +33,8 @@ export type LayoutStyle = 'modern' | 'clean';
 export interface PaymentHistoryEntry {
   id: string;
   paymentMethod: string; // e.g. "Mastercard - 8308"
+  cardBrand?: string;
+  cardLast4?: string;
   date: string;          // ISO yyyy-MM-dd
   amountPaid: number;
   receiptNumber: string;
@@ -69,6 +71,11 @@ export interface PaymentInfo {
   paymentUrl?: string;
 }
 
+export interface FileDownloads {
+  invoiceUrl?: string;
+  receiptUrl?: string;
+}
+
 export type InvoiceTitle = 'Invoice' | 'Tax Invoice' | 'Quote' | 'Receipt' | 'Credit Note' | 'Proforma Invoice';
 
 export interface InvoiceData {
@@ -94,6 +101,9 @@ export interface InvoiceData {
   // Payment
   paymentInfo: PaymentInfo;
 
+  // Optional public files
+  fileDownloads: FileDownloads;
+
   // Text
   notes?: string;
   terms?: string;
@@ -110,6 +120,7 @@ export interface InvoiceData {
   receiptNumber?: string;
   datePaid?: string;        // ISO yyyy-MM-dd; falls back to invoiceDate
   amountPaid?: number;      // explicit override; falls back to grandTotal
+  renderPaymentHistory?: boolean;
   paymentHistory?: PaymentHistoryEntry[];
 
   // Customization

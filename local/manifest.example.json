@@ -1,0 +1,37 @@
+{
+  "profiles": [
+    {
+      "id": "default",
+      "label": "Default",
+      "receiptPrefill": "receipt-eml-prefill.json",
+      "invoicePrefill": "invoice-generator-prefill.json",
+      "subscriptionPrefill": "subscription-eml-prefill.json",
+      "logo": "receipt-eml-logo.txt",
+      "attachments": []
+    },
+    {
+      "id": "acme",
+      "label": "Acme Corp",
+      "receiptPrefill": "profiles/acme/receipt-eml-prefill.json",
+      "invoicePrefill": "profiles/acme/invoice-generator-prefill.json",
+      "subscriptionPrefill": "profiles/acme/subscription-eml-prefill.json",
+      "logo": "profiles/acme/receipt-eml-logo.txt",
+      "attachments": [
+        "profiles/acme/Invoice-80EGJYAL-0012.pdf",
+        "profiles/acme/Receipt-80EGJYAL-0012.pdf"
+      ]
+    },
+    {
+      "id": "anthropic-claude-pro",
+      "label": "Anthropic Claude Pro (Apr 2026)",
+      "receiptPrefill": "profiles/anthropic-claude-pro/receipt-eml-prefill.json",
+      "invoicePrefill": "profiles/anthropic-claude-pro/invoice-generator-prefill.json"
+    },
+    {
+      "id": "anthropic-api-usage",
+      "label": "Anthropic API usage credit (Apr 2026)",
+      "receiptPrefill": "profiles/anthropic-api-usage/receipt-eml-prefill.json",
+      "invoicePrefill": "profiles/anthropic-api-usage/invoice-generator-prefill.json"
+    }
+  ]
+}

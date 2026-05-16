@@ -11,6 +11,8 @@ import {
   loadHydrationManifest,
   fetchLocalJson,
   fetchLocalText,
+  fetchLocalAttachment,
+  fetchLocalAttachments,
   describeHydrationSources,
   mergeAttachmentPaths,
 } from './local-hydration';
@@ -229,6 +231,17 @@ describe('fetch helpers', () => {
     expect(await fetchLocalText('/local/x.txt')).toBeNull();
   });
 
+  it('fetchLocalText returns null when fetch throws (line 137 branch)', async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('network'));
+    expect(await fetchLocalText('/local/x.txt')).toBeNull();
+  });
+
+  it('loadHydrationManifest falls back when fetch itself throws', async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('offline'));
+    const profiles = await loadHydrationManifest();
+    expect(profiles).toEqual([DEFAULT_HYDRATION_PROFILE]);
+  });
+
   it('loadHydrationManifest falls back when manifest is missing', async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: false });
     const profiles = await loadHydrationManifest();
@@ -252,5 +265,109 @@ describe('fetch helpers', () => {
     });
     const profiles = await loadHydrationManifest();
     expect(profiles).toEqual([DEFAULT_HYDRATION_PROFILE]);
+  });
+});
+
+describe('fetchLocalAttachment', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('returns null for an empty path (line 170 — no resolved URL)', async () => {
+    expect(await fetchLocalAttachment('')).toBeNull();
+  });
+
+  it('returns null for a blank path', async () => {
+    expect(await fetchLocalAttachment('   ')).toBeNull();
+  });
+
+  it('returns null when fetch returns !ok', async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: false });
+    expect(await fetchLocalAttachment('/local/file.pdf')).toBeNull();
+  });
+
+  it('returns null when fetch throws (line 190 catch)', async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('network'));
+    expect(await fetchLocalAttachment('/local/file.pdf')).toBeNull();
+  });
+
+  it('returns a valid attachment object on success, deriving name from path', async () => {
+    const blob = new Blob(['hello'], { type: 'application/pdf' });
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      blob: async () => blob,
+    });
+    const result = await fetchLocalAttachment('/local/file.pdf');
+    expect(result).not.toBeNull();
+    expect(result?.name).toBe('file.pdf');
+    expect(result?.mimeType).toBe('application/pdf');
+    expect(typeof result?.base64).toBe('string');
+    expect(result!.base64.length).toBeGreaterThan(0);
+  });
+
+  it('uses nameOverride when provided', async () => {
+    const blob = new Blob(['data'], { type: 'text/plain' });
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      blob: async () => blob,
+    });
+    const result = await fetchLocalAttachment('/local/raw.txt', '  Custom.txt  ');
+    expect(result?.name).toBe('Custom.txt');
+  });
+
+  it('falls back to application/octet-stream when blob.type is empty', async () => {
+    const blob = new Blob(['raw bytes']);
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      blob: async () => blob,
+    });
+    const result = await fetchLocalAttachment('/local/data.bin');
+    expect(result?.mimeType).toBe('application/octet-stream');
+  });
+});
+
+describe('fetchLocalAttachments', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('returns an empty array for empty input', async () => {
+    expect(await fetchLocalAttachments([])).toEqual([]);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('deduplicates identical paths before fetching', async () => {
+    const blob = new Blob(['x'], { type: 'text/plain' });
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      blob: async () => blob,
+    });
+    const results = await fetchLocalAttachments(['a.txt', 'a.txt', 'b.txt']);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(results).toHaveLength(2);
+  });
+
+  it('filters out failed (null) results', async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: false });
+    const results = await fetchLocalAttachments(['a.txt', 'b.txt']);
+    expect(results).toEqual([]);
+  });
+
+  it('returns only the successful attachments when some fail', async () => {
+    const blob = new Blob(['ok'], { type: 'text/plain' });
+    (global.fetch as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({ ok: true, blob: async () => blob })
+      .mockResolvedValueOnce({ ok: false });
+    const results = await fetchLocalAttachments(['good.txt', 'bad.txt']);
+    expect(results).toHaveLength(1);
+    expect(results[0].name).toBe('good.txt');
   });
 });

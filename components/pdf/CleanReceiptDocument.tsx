@@ -1,6 +1,6 @@
 'use client';
 
-import { Document, Page, View, Text, Image, StyleSheet } from '@react-pdf/renderer';
+import { Document, Page, View, Text, Image, Link, StyleSheet } from '@react-pdf/renderer';
 import { InvoiceData } from '@/types/invoice';
 import {
   computeTotals,
@@ -8,8 +8,19 @@ import {
   computeLineItemTax,
   computeLineItemDiscount,
   formatCurrency,
+  formatPreciseCurrency,
   formatDate,
+  isReceiptDocument,
 } from '@/lib/invoice-utils';
+import { getStripeCardAsset } from '@/lib/stripe-card-assets';
+
+function paymentHistoryMethod(entry: NonNullable<InvoiceData['paymentHistory']>[number]): string {
+  if (entry.cardBrand) {
+    return `${getStripeCardAsset(entry.cardBrand).label}${entry.cardLast4 ? ` - ${entry.cardLast4}` : ''}`;
+  }
+
+  return entry.paymentMethod || '—';
+}
 
 const S = StyleSheet.create({
   page: {
@@ -179,6 +190,29 @@ const S = StyleSheet.create({
   phThText: { fontSize: 8, color: '#777777' },
   phTdText: { fontSize: 9, color: '#111111' },
 
+  /* ── File downloads ───────────────────────────────────── */
+  downloadsSection: { marginTop: 28 },
+  downloadsTitle: {
+    fontSize: 12,
+    fontFamily: 'Helvetica-Bold',
+    color: '#111111',
+    marginBottom: 8,
+  },
+  downloadRow: {
+    flexDirection: 'row',
+    marginBottom: 5,
+  },
+  downloadLabel: {
+    fontSize: 9,
+    color: '#555555',
+    width: 78,
+  },
+  downloadLink: {
+    fontSize: 9,
+    color: '#111111',
+    textDecoration: 'underline',
+  },
+
   /* ── Footer ─────────────────────────────────────────────── */
   footer: {
     position: 'absolute',
@@ -237,7 +271,7 @@ export default function CleanReceiptDocument({ data }: Props) {
             <Text style={S.metaLabel}>Invoice number</Text>
             <Text style={S.metaValue}>{data.invoiceNumber}</Text>
           </View>
-          {data.receiptNumber && (
+          {isReceiptDocument(data.invoiceTitle) && data.receiptNumber && (
             <View style={S.metaRow}>
               <Text style={S.metaLabel}>Receipt number</Text>
               <Text style={S.metaValue}>{data.receiptNumber}</Text>
@@ -324,7 +358,7 @@ export default function CleanReceiptDocument({ data }: Props) {
                   <Text style={S.tdText}>{item.quantity}</Text>
                 </View>
                 <View style={S.colPrice}>
-                  <Text style={S.tdText}>{formatCurrency(item.unitPrice, data.currency)}</Text>
+                  <Text style={S.tdText}>{formatPreciseCurrency(item.unitPrice, data.currency)}</Text>
                 </View>
                 <View style={S.colTax}>
                   <Text style={S.tdText}>{item.taxRate > 0 ? `${item.taxRate}%` : '—'}</Text>
@@ -403,7 +437,7 @@ export default function CleanReceiptDocument({ data }: Props) {
             {data.paymentHistory.map((entry) => (
               <View key={entry.id} style={S.phRow}>
                 <View style={S.phColMethod}>
-                  <Text style={S.phTdText}>{entry.paymentMethod}</Text>
+                  <Text style={S.phTdText}>{paymentHistoryMethod(entry)}</Text>
                 </View>
                 <View style={S.phColDate}>
                   <Text style={S.phTdText}>{formatDate(entry.date)}</Text>
@@ -416,6 +450,29 @@ export default function CleanReceiptDocument({ data }: Props) {
                 </View>
               </View>
             ))}
+          </View>
+        )}
+
+        {/* ── File downloads ──────────────────────────────── */}
+        {(data.fileDownloads?.invoiceUrl || data.fileDownloads?.receiptUrl) && (
+          <View style={S.downloadsSection} wrap={false}>
+            <Text style={S.downloadsTitle}>File downloads</Text>
+            {data.fileDownloads.invoiceUrl && (
+              <View style={S.downloadRow}>
+                <Text style={S.downloadLabel}>Invoice file</Text>
+                <Link src={data.fileDownloads.invoiceUrl} style={S.downloadLink}>
+                  Download invoice file
+                </Link>
+              </View>
+            )}
+            {data.fileDownloads.receiptUrl && (
+              <View style={S.downloadRow}>
+                <Text style={S.downloadLabel}>Receipt file</Text>
+                <Link src={data.fileDownloads.receiptUrl} style={S.downloadLink}>
+                  Download receipt file
+                </Link>
+              </View>
+            )}
           </View>
         )}
 

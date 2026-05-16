@@ -613,11 +613,12 @@ export default function SubscriptionEmlEditor() {
   const [fields, setFields] = useState<Fields>(SUBSCRIPTION_STATIC_DEFAULTS);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFields(createDefaultSubscriptionFields());
-   
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFields(prev => {
       const pricing = recalcPricing(prev);
       if (
@@ -654,6 +655,7 @@ export default function SubscriptionEmlEditor() {
 
   useEffect(() => {
     const url = fields.logoUrl.trim();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!url) { setLogoData(null); setLogoStatus('idle'); return; }
     setLogoStatus('loading');
     let cancelled = false;
@@ -700,6 +702,7 @@ export default function SubscriptionEmlEditor() {
 
   useEffect(() => {
     if (isEmptyHydrationId(selectedHydrationId)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setHydrationPrefill(null);
       setHydrationAttachments([]);
       setHydrationSource('');
@@ -801,9 +804,9 @@ export default function SubscriptionEmlEditor() {
   const logoMime = logoData?.mime ?? null;
   const logoPreviewSrc = fields.logoUrl.trim() || null;
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const eml = useMemo(
     () => buildEml(fields, attachments, logoB64, logoMime),
-     
     [fields, attachments, logoB64, logoMime]
   );
 

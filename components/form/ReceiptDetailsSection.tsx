@@ -157,7 +157,7 @@ export default function ReceiptDetailsSection({ register, watch, setValue, contr
 
               {fields.length === 0 && (
                 <div className="rounded-xl border border-dashed border-gray-200 bg-white py-6 flex items-center justify-center text-xs text-gray-400">
-                  No payment history rows yet — click "Add Row" to add one
+                  {'No payment history rows yet — click "Add Row" to add one'}
                 </div>
               )}
 

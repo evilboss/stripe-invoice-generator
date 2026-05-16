@@ -364,7 +364,7 @@ export default function BillingEmlEditor() {
 
   const eml = useMemo(
     () => buildEml(fields, attachments, logoB64, logoMime),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     [fields, attachments, logoB64, logoMime]
   );
 

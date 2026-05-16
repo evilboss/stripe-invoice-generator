@@ -6,6 +6,7 @@ import {
   View,
   Text,
   Image,
+  Link,
   StyleSheet,
   Font,
 } from '@react-pdf/renderer';
@@ -18,11 +19,20 @@ import {
   formatCurrency,
   formatDate,
 } from '@/lib/invoice-utils';
+import { getStripeCardAsset } from '@/lib/stripe-card-assets';
 
 Font.register({
   family: 'Helvetica',
   fonts: [],
 });
+
+function paymentHistoryMethod(entry: NonNullable<InvoiceData['paymentHistory']>[number]): string {
+  if (entry.cardBrand) {
+    return `${getStripeCardAsset(entry.cardBrand).label}${entry.cardLast4 ? ` - ${entry.cardLast4}` : ''}`;
+  }
+
+  return entry.paymentMethod || '—';
+}
 
 function makeStyles(primary: string, accent: string, headerText: string) {
   return StyleSheet.create({
@@ -274,6 +284,16 @@ function makeStyles(primary: string, accent: string, headerText: string) {
       fontFamily: 'Helvetica-Bold',
       flex: 1,
     },
+    paymentCardValue: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+    },
+    paymentCardIcon: {
+      height: 12,
+      objectFit: 'contain',
+    },
     footer: {
       position: 'absolute',
       bottom: 20,
@@ -337,6 +357,35 @@ function makeStyles(primary: string, accent: string, headerText: string) {
       fontSize: 8,
       color: '#1a1a2e',
     },
+    downloadsSection: {
+      marginTop: 22,
+      backgroundColor: '#f4f6fa',
+      borderRadius: 6,
+      padding: 12,
+    },
+    downloadsTitle: {
+      fontSize: 9,
+      fontFamily: 'Helvetica-Bold',
+      color: accent,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+      marginBottom: 8,
+    },
+    downloadRow: {
+      flexDirection: 'row',
+      marginBottom: 5,
+    },
+    downloadLabel: {
+      fontSize: 8,
+      color: '#888a9e',
+      width: 90,
+    },
+    downloadLink: {
+      fontSize: 8,
+      color: accent,
+      flex: 1,
+      textDecoration: 'underline',
+    },
     colHMethod:  { width: '32%' },
     colHDate:    { width: '22%' },
     colHAmount:  { width: '20%', textAlign: 'right' },
@@ -351,6 +400,12 @@ interface Props {
 export default function InvoiceDocument({ data }: Props) {
   const styles = makeStyles(data.primaryColor, data.accentColor, data.headerTextColor ?? '#ffffff');
   const totals = computeTotals(data);
+  const cardAsset = data.paymentInfo.cardBrand ? getStripeCardAsset(data.paymentInfo.cardBrand) : null;
+  const cardDisplay = cardAsset
+    ? `${cardAsset.label}${data.paymentInfo.cardLast4 ? ` ending in ${data.paymentInfo.cardLast4}` : ''}`
+    : data.paymentInfo.cardLast4
+      ? `Card ending in ${data.paymentInfo.cardLast4}`
+      : '';
 
   const formatAddr = (addr: typeof data.from.address) =>
     [addr.line1, addr.line2, `${addr.city}${addr.state ? ', ' + addr.state : ''} ${addr.zipCode}`, addr.country]
@@ -566,13 +621,27 @@ export default function InvoiceDocument({ data }: Props) {
           </View>
 
           {/* Payment Info */}
-          {(data.paymentInfo.method || data.paymentInfo.bankName || data.paymentInfo.iban) && (
+          {(data.paymentInfo.method || cardDisplay || data.paymentInfo.bankName || data.paymentInfo.iban) && (
             <View style={styles.paymentBox}>
               <Text style={styles.paymentLabel}>Payment Information</Text>
               {data.paymentInfo.method && (
                 <View style={styles.paymentRow}>
                   <Text style={styles.paymentKey}>Method:</Text>
                   <Text style={styles.paymentValue}>{data.paymentInfo.method}</Text>
+                </View>
+              )}
+              {cardDisplay && (
+                <View style={styles.paymentRow}>
+                  <Text style={styles.paymentKey}>Card:</Text>
+                  <View style={styles.paymentCardValue}>
+                    {cardAsset && (
+                      <Image
+                        src={cardAsset.url}
+                        style={[styles.paymentCardIcon, { width: cardAsset.width * 0.75 }]}
+                      />
+                    )}
+                    <Text style={styles.paymentValue}>{cardDisplay}</Text>
+                  </View>
                 </View>
               )}
               {data.paymentInfo.bankName && (
@@ -641,7 +710,7 @@ export default function InvoiceDocument({ data }: Props) {
               {data.paymentHistory.map((p) => (
                 <View key={p.id} style={styles.historyRow}>
                   <View style={styles.colHMethod}>
-                    <Text style={styles.historyText}>{p.paymentMethod || '—'}</Text>
+                    <Text style={styles.historyText}>{paymentHistoryMethod(p)}</Text>
                   </View>
                   <View style={styles.colHDate}>
                     <Text style={styles.historyText}>{p.date ? formatDate(p.date) : '—'}</Text>
@@ -656,6 +725,29 @@ export default function InvoiceDocument({ data }: Props) {
                   </View>
                 </View>
               ))}
+            </View>
+          )}
+
+          {/* File Downloads */}
+          {(data.fileDownloads?.invoiceUrl || data.fileDownloads?.receiptUrl) && (
+            <View style={styles.downloadsSection} wrap={false}>
+              <Text style={styles.downloadsTitle}>File Downloads</Text>
+              {data.fileDownloads.invoiceUrl && (
+                <View style={styles.downloadRow}>
+                  <Text style={styles.downloadLabel}>Invoice file:</Text>
+                  <Link src={data.fileDownloads.invoiceUrl} style={styles.downloadLink}>
+                    Download invoice file
+                  </Link>
+                </View>
+              )}
+              {data.fileDownloads.receiptUrl && (
+                <View style={styles.downloadRow}>
+                  <Text style={styles.downloadLabel}>Receipt file:</Text>
+                  <Link src={data.fileDownloads.receiptUrl} style={styles.downloadLink}>
+                    Download receipt file
+                  </Link>
+                </View>
+              )}
             </View>
           )}
 

@@ -1,23 +1,161 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { format, addDays } from 'date-fns';
 import dynamic from 'next/dynamic';
 import { InvoiceData } from '@/types/invoice';
-import { generateInvoiceNumber, generateReceiptNumber, newLineItem, num } from '@/lib/invoice-utils';
+import { generateInvoiceNumber, generateReceiptNumber, isReceiptDocument, newLineItem, num } from '@/lib/invoice-utils';
 import BusinessInfoSection from '@/components/form/BusinessInfoSection';
 import CustomerInfoSection from '@/components/form/CustomerInfoSection';
 import InvoiceDetailsSection from '@/components/form/InvoiceDetailsSection';
 import LineItemsSection from '@/components/form/LineItemsSection';
 import AdjustmentsSection from '@/components/form/AdjustmentsSection';
 import PaymentInfoSection from '@/components/form/PaymentInfoSection';
+import FileDownloadsSection from '@/components/form/FileDownloadsSection';
 import NotesSection from '@/components/form/NotesSection';
 import CustomizationSection from '@/components/form/CustomizationSection';
 import ReceiptDetailsSection from '@/components/form/ReceiptDetailsSection';
 import Button from '@/components/ui/Button';
+import LocalHydrationPanel from '@/components/LocalHydrationPanel';
+import { getStripeCardAsset } from '@/lib/stripe-card-assets';
+import {
+  type HydrationProfile,
+  describeHydrationSources,
+  fetchLocalJson,
+  EMPTY_HYDRATION_ID,
+  isEmptyHydrationId,
+  loadHydrationManifest,
+  resolveLocalUrl,
+} from '@/lib/local-hydration';
 
 const InvoicePreviewModal = dynamic(() => import('@/components/InvoicePreviewModal'), { ssr: false });
+
+type InvoicePrefill = Partial<InvoiceData>;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function mergeInvoiceData(base: InvoiceData, patch: InvoicePrefill): InvoiceData {
+  const merge = (left: unknown, right: unknown): unknown => {
+    if (Array.isArray(right)) return right;
+    if (isRecord(left) && isRecord(right)) {
+      return Object.fromEntries(
+        [...new Set([...Object.keys(left), ...Object.keys(right)])]
+          .map(key => [key, merge(left[key], right[key])])
+      );
+    }
+    return right === undefined ? left : right;
+  };
+
+  return merge(base, patch) as InvoiceData;
+}
+
+function receiptPrefillToInvoice(config: Record<string, unknown>): InvoicePrefill {
+  const lineItems = Array.isArray(config.lineItems) ? config.lineItems : [];
+  const paymentDate = typeof config.paymentDate === 'string' ? config.paymentDate : '';
+  const isoPaidDate = paymentDate ? format(new Date(paymentDate), 'yyyy-MM-dd') : defaultValues.invoiceDate;
+  const cardBrand = typeof config.cardBrand === 'string' ? config.cardBrand : '';
+  const cardLast4 = typeof config.cardLast4 === 'string' ? config.cardLast4 : '';
+  const invoiceLineItems = lineItems.map((raw, index) => {
+    const item = isRecord(raw) ? raw : {};
+    return {
+      id: typeof item.id === 'string' ? item.id : String(index + 1),
+      name: typeof item.name === 'string' ? item.name : '',
+      description: typeof config.billingPeriod === 'string' ? config.billingPeriod : '',
+      quantity: Number(item.qty) || 0,
+      unitPrice: Number(item.unitPrice) || 0,
+      discountType: 'percentage' as const,
+      discountValue: 0,
+      taxRate: Number(item.taxRate) || 0,
+    };
+  });
+  const amountPaid = invoiceLineItems.reduce((sum, item) => {
+    const subtotal = Math.max(0, item.quantity * item.unitPrice);
+    return sum + subtotal + subtotal * (Math.max(0, item.taxRate) / 100);
+  }, 0);
+
+  return {
+    invoiceTitle: 'Invoice',
+    invoiceNumber: typeof config.invoiceNumber === 'string' ? config.invoiceNumber : defaultValues.invoiceNumber,
+    invoiceDate: isoPaidDate,
+    dueDate: isoPaidDate,
+    currency: 'USD',
+    from: {
+      ...defaultValues.from,
+      logo: typeof config.logo === 'string' ? config.logo : undefined,
+      name: typeof config.companyName === 'string' ? config.companyName : '',
+      email: typeof config.fromEmail === 'string' ? config.fromEmail : '',
+      website: typeof config.supportUrl === 'string' ? config.supportUrl : '',
+      address: {
+        line1: '548 Market St',
+        line2: 'PMB 68956',
+        city: 'San Francisco',
+        state: 'California',
+        zipCode: '94104',
+        country: 'United States',
+      },
+    },
+    billTo: {
+      ...defaultValues.billTo,
+      name: 'Gilberto B. Reyes Jr',
+      email: typeof config.toEmail === 'string' ? config.toEmail : 'jr.evilboss@gmail.com',
+      taxId: 'GB434338990',
+      address: {
+        line1: '21 Milton Park',
+        line2: '',
+        city: 'London',
+        state: 'England',
+        zipCode: 'N6 5QA',
+        country: 'United Kingdom',
+      },
+    },
+    lineItems: invoiceLineItems,
+    adjustments: {
+      shipping: 0,
+      additionalDiscountType: 'percentage',
+      additionalDiscountValue: 0,
+    },
+    paymentInfo: {
+      ...defaultValues.paymentInfo,
+      method: cardBrand && cardLast4 ? `${getStripeCardAsset(cardBrand).label} - ${cardLast4}` : '',
+      cardBrand,
+      cardLast4,
+    },
+    fileDownloads: {
+      invoiceUrl: typeof config.invoiceDownloadUrl === 'string' ? config.invoiceDownloadUrl : '',
+      receiptUrl: typeof config.receiptDownloadUrl === 'string' ? config.receiptDownloadUrl : '',
+    },
+    taxLabel: typeof config.taxLabel === 'string' ? config.taxLabel : 'Tax',
+    taxCountry: typeof config.taxCountry === 'string' ? config.taxCountry : '',
+    layoutStyle: 'clean',
+    receiptNumber: typeof config.receiptNumber === 'string' ? config.receiptNumber : defaultValues.receiptNumber,
+    datePaid: isoPaidDate,
+    amountPaid,
+    renderPaymentHistory: true,
+    paymentHistory: [{
+      id: 'local-payment-history',
+      paymentMethod: cardBrand && cardLast4 ? `${getStripeCardAsset(cardBrand).label} - ${cardLast4}` : '',
+      cardBrand,
+      cardLast4,
+      date: isoPaidDate,
+      amountPaid,
+      receiptNumber: typeof config.receiptNumber === 'string' ? config.receiptNumber : '',
+    }],
+    notes: typeof config.contactEmail === 'string'
+      ? `Questions? Visit our support site or contact us at ${config.contactEmail}.`
+      : defaultValues.notes,
+  };
+}
+
+function normalizeInvoicePrefill(raw: unknown): InvoicePrefill | null {
+  if (!isRecord(raw)) return null;
+  if (isRecord(raw.invoiceGenerator)) return raw.invoiceGenerator as InvoicePrefill;
+  if (isRecord(raw.invoice)) return raw.invoice as InvoicePrefill;
+  if (isRecord(raw.receiptEml)) return receiptPrefillToInvoice(raw.receiptEml);
+  return raw as InvoicePrefill;
+}
 
 const defaultValues: InvoiceData = {
   invoiceTitle: 'Invoice',
@@ -61,6 +199,8 @@ const defaultValues: InvoiceData = {
   },
   paymentInfo: {
     method: '',
+    cardBrand: '',
+    cardLast4: '',
     bankName: '',
     accountName: '',
     accountNumber: '',
@@ -69,15 +209,20 @@ const defaultValues: InvoiceData = {
     swift: '',
     paymentUrl: '',
   },
+  fileDownloads: {
+    invoiceUrl: '',
+    receiptUrl: '',
+  },
   notes: '',
   terms: '',
   footerText: '',
   taxLabel: 'Tax',
   taxCountry: '',
   layoutStyle: 'modern',
-  receiptNumber: generateReceiptNumber(),
+  receiptNumber: '',
   datePaid: '',
   amountPaid: undefined,
+  renderPaymentHistory: false,
   paymentHistory: [],
   primaryColor: '#635BFF',
   accentColor: '#00D4FF',
@@ -88,11 +233,106 @@ export default function InvoiceForm() {
   const [showPreview, setShowPreview] = useState(false);
   const [previewData, setPreviewData] = useState<InvoiceData | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [hydrationProfiles, setHydrationProfiles] = useState<HydrationProfile[]>([]);
+  const [selectedHydrationId, setSelectedHydrationId] = useState(EMPTY_HYDRATION_ID);
+  const [hydrationLoading, setHydrationLoading] = useState(false);
+  const [localPrefill, setLocalPrefill] = useState<InvoicePrefill | null>(null);
+  const [localPrefillSource, setLocalPrefillSource] = useState('');
+  const [localPrefillApplied, setLocalPrefillApplied] = useState(false);
 
-  const { register, control, watch, setValue, handleSubmit, formState: { errors } } = useForm<InvoiceData>({
+  const { register, control, watch, setValue, reset, handleSubmit, formState: { errors } } = useForm<InvoiceData>({
     defaultValues,
     mode: 'onChange',
   });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    loadHydrationManifest().then(profiles => {
+      if (cancelled) return;
+      setHydrationProfiles(profiles);
+      setSelectedHydrationId(prev =>
+        prev && (profiles.some(p => p.id === prev) || isEmptyHydrationId(prev))
+          ? prev
+          : EMPTY_HYDRATION_ID
+      );
+    });
+
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (isEmptyHydrationId(selectedHydrationId)) {
+      setLocalPrefill(null);
+      setLocalPrefillSource('');
+      setLocalPrefillApplied(false);
+      setHydrationLoading(false);
+      return;
+    }
+
+    const profile = hydrationProfiles.find(p => p.id === selectedHydrationId);
+    if (!profile) return;
+
+    let cancelled = false;
+    setHydrationLoading(true);
+    setLocalPrefillApplied(false);
+
+    const loadProfilePrefill = async () => {
+      const loadOne = async (url: string | undefined) => {
+        if (!url) return null;
+        const raw = await fetchLocalJson(url);
+        return raw ? normalizeInvoicePrefill(raw) : null;
+      };
+
+      const receiptUrl = resolveLocalUrl(profile.receiptPrefill);
+      const invoiceUrl = resolveLocalUrl(profile.invoicePrefill);
+      const [receiptConfig, invoiceConfig] = await Promise.all([
+        loadOne(receiptUrl),
+        loadOne(invoiceUrl),
+      ]);
+
+      const mergedConfig = receiptConfig && invoiceConfig
+        ? mergeInvoiceData(mergeInvoiceData(defaultValues, receiptConfig), invoiceConfig)
+        : (invoiceConfig ?? receiptConfig);
+
+      if (cancelled) return;
+
+      setLocalPrefill(mergedConfig);
+      setLocalPrefillSource(
+        mergedConfig
+          ? describeHydrationSources(profile, {
+              receipt: Boolean(receiptConfig),
+              invoice: Boolean(invoiceConfig),
+            })
+          : ''
+      );
+    };
+
+    loadProfilePrefill().finally(() => {
+      if (!cancelled) setHydrationLoading(false);
+    });
+
+    return () => { cancelled = true; };
+  }, [selectedHydrationId, hydrationProfiles]);
+
+  const applyLocalPrefill = () => {
+    if (!localPrefill) return;
+    reset(mergeInvoiceData(defaultValues, localPrefill));
+    setPreviewData(null);
+    setLocalPrefillApplied(true);
+  };
+
+  const resetFromHydration = () => {
+    reset({
+      ...defaultValues,
+      invoiceNumber: generateInvoiceNumber(),
+      receiptNumber: '',
+      invoiceDate: format(new Date(), 'yyyy-MM-dd'),
+      dueDate: format(addDays(new Date(), 30), 'yyyy-MM-dd'),
+    });
+    setPreviewData(null);
+    setLocalPrefillApplied(false);
+  };
 
   /**
    * Sanitize all numeric fields before rendering the PDF.
@@ -102,6 +342,7 @@ export default function InvoiceForm() {
    */
   const sanitize = (data: InvoiceData): InvoiceData => ({
     ...data,
+    receiptNumber: isReceiptDocument(data.invoiceTitle) ? (data.receiptNumber ?? '') : '',
     lineItems: data.lineItems.map((it) => ({
       ...it,
       quantity:      num(it.quantity),
@@ -115,10 +356,21 @@ export default function InvoiceForm() {
       additionalDiscountValue: num(data.adjustments?.additionalDiscountValue),
     },
     amountPaid: Number.isFinite(data.amountPaid) ? data.amountPaid : undefined,
-    paymentHistory: (data.paymentHistory ?? []).map((p) => ({
-      ...p,
-      amountPaid: num(p.amountPaid),
-    })),
+    paymentHistory: data.renderPaymentHistory
+      ? (data.paymentHistory ?? []).map((p) => ({
+          ...p,
+          cardBrand: p.cardBrand ?? '',
+          cardLast4: p.cardLast4 ?? '',
+          paymentMethod: p.cardBrand
+            ? `${getStripeCardAsset(p.cardBrand).label}${p.cardLast4 ? ` - ${p.cardLast4}` : ''}`
+            : (p.paymentMethod ?? ''),
+          amountPaid: num(p.amountPaid),
+        }))
+      : [],
+    fileDownloads: {
+      invoiceUrl: data.fileDownloads?.invoiceUrl?.trim() ?? '',
+      receiptUrl: data.fileDownloads?.receiptUrl?.trim() ?? '',
+    },
   });
 
   const handlePreview = handleSubmit((data: InvoiceData) => {
@@ -156,7 +408,7 @@ export default function InvoiceForm() {
       setValue(key, defaultValues[key] as never);
     });
     setValue('invoiceNumber', generateInvoiceNumber());
-    setValue('receiptNumber', generateReceiptNumber());
+    setValue('receiptNumber', isReceiptDocument(watch('invoiceTitle')) ? generateReceiptNumber() : '');
     setValue('invoiceDate', format(new Date(), 'yyyy-MM-dd'));
     setValue('dueDate', format(addDays(new Date(), 30), 'yyyy-MM-dd'));
   };
@@ -166,12 +418,27 @@ export default function InvoiceForm() {
   return (
     <>
       <form onSubmit={handlePreview} className="flex flex-col gap-6">
+        {(hydrationProfiles.length > 0 || hydrationLoading) && (
+          <LocalHydrationPanel
+            profiles={hydrationProfiles}
+            selectedId={selectedHydrationId}
+            onSelectedIdChange={setSelectedHydrationId}
+            sourceDescription={localPrefillSource}
+            hasData={Boolean(localPrefill)}
+            loading={hydrationLoading}
+            applied={localPrefillApplied}
+            onApply={applyLocalPrefill}
+            onReset={resetFromHydration}
+            title="Local invoice hydration available"
+          />
+        )}
+
         {/* Section Grid */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           <div className="flex flex-col gap-6">
             <InvoiceDetailsSection register={register} setValue={setValue} errors={errors} />
-            <BusinessInfoSection register={register} control={control as never} errors={errors} />
-            {!isClean && <PaymentInfoSection register={register} />}
+            <BusinessInfoSection register={register} control={control as never} errors={errors} setValue={setValue} />
+            {!isClean && <PaymentInfoSection register={register} cardBrand={watch('paymentInfo.cardBrand')} />}
           </div>
           <div className="flex flex-col gap-6">
             <CustomerInfoSection register={register} control={control as never} errors={errors} />
@@ -190,6 +457,7 @@ export default function InvoiceForm() {
         {/* Line Items - Full Width */}
         <LineItemsSection control={control as never} register={register} watch={watch} setValue={setValue} />
         <AdjustmentsSection register={register} watch={watch} setValue={setValue} />
+        <FileDownloadsSection register={register} />
 
         {/* Action Bar */}
         <div className="sticky bottom-0 left-0 right-0 flex items-center justify-between gap-4 rounded-2xl border border-gray-100 bg-white/90 px-6 py-4 shadow-lg backdrop-blur-md">

@@ -21,6 +21,11 @@ interface Props {
 }
 
 export default function InvoicePreviewModal({ data, onClose, onDownload, downloading }: Props) {
+  const fileLinks = [
+    { label: 'Invoice File', url: data.fileDownloads?.invoiceUrl },
+    { label: 'Receipt File', url: data.fileDownloads?.receiptUrl },
+  ].filter((link): link is { label: string; url: string } => Boolean(link.url));
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-gray-900/70 backdrop-blur-sm">
       {/* Top Bar */}
@@ -31,6 +36,18 @@ export default function InvoicePreviewModal({ data, onClose, onDownload, downloa
           <span className="text-gray-400 text-xs">· {data.invoiceNumber}</span>
         </div>
         <div className="flex items-center gap-3">
+          {fileLinks.map((link) => (
+            <a
+              key={link.label}
+              href={link.url}
+              download
+              target="_blank"
+              rel="noreferrer"
+              className="hidden rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-gray-200 transition hover:border-white/20 hover:bg-white/10 sm:inline-flex"
+            >
+              {link.label}
+            </a>
+          ))}
           <Button
             variant="primary"
             size="sm"

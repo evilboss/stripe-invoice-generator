@@ -10,6 +10,14 @@ const Input = forwardRef<HTMLInputElement, Props>(function Input(
   { error, prefix, suffix, className = '', ...props },
   ref
 ) {
+  // Normalise the value only when the caller explicitly passed a value prop
+  // (controlled mode — direct state binding or Controller).
+  // When value is absent entirely (react-hook-form register()), leave props
+  // untouched so the library manages the DOM via its own ref.
+  const inputProps = 'value' in props
+    ? { ...props, value: props.value ?? '' }
+    : props;
+
   const base =
     'w-full rounded-lg border bg-white px-3 py-2 text-sm text-gray-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-50 disabled:cursor-not-allowed';
   const borderClass = error ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-gray-200';
@@ -25,7 +33,7 @@ const Input = forwardRef<HTMLInputElement, Props>(function Input(
         <input
           ref={ref}
           className={`flex-1 px-3 py-2 text-sm text-gray-800 outline-none bg-transparent ${className}`}
-          {...props}
+          {...inputProps}
         />
         {suffix && (
           <span className="px-3 py-2 text-sm text-gray-400 bg-gray-50 border-l border-gray-200 select-none">
@@ -40,7 +48,7 @@ const Input = forwardRef<HTMLInputElement, Props>(function Input(
     <input
       ref={ref}
       className={`${base} ${borderClass} ${className}`}
-      {...props}
+      {...inputProps}
     />
   );
 });
